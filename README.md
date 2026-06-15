@@ -168,7 +168,7 @@ git commit -m "Initial public release"
 4. Add your remote:
 
 ```powershell
-git remote add origin https://github.com/your-name/your-repo.git
+git remote add origin https://github.com/Chopsicks/your-repo.git
 git push -u origin main
 ```
 
