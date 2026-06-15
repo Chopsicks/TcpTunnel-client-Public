@@ -1,0 +1,2114 @@
+﻿<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>TCP Tunnel</title>
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  
+<link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Comic+Neue:wght@400;700&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400&display=swap" rel="stylesheet">
+  
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; font-family: 'Inter', 'Segoe UI', sans-serif; -webkit-tap-highlight-color: transparent; }
+html { background: #1a1a1a; }
+body { background: #1a1a1a; color: #f1f3f5; height: 100vh; overflow: hidden; }
+body.light { background: #ffffff; color: #1a1a1a; }
+* { scrollbar-width: none; -ms-overflow-style: none; }
+*::-webkit-scrollbar { width: 0; height: 0; display: none; }
+a { color: inherit; }
+a:focus, button:focus, input:focus, textarea:focus { outline: none; box-shadow: none; }
+.btn-close:hover { background: #2f2f2f !important; color: #fff !important; }
+.menu-toggle { width: 38px; height: 38px; border: none; cursor: pointer; display: flex; align-items: center; justify-content: center; background: #222; color: #aaa; font-size: 15px; transition: all 0.15s; border-radius: 8px; }
+.menu-toggle:hover { background: #333; color: #fff; }
+.light .menu-toggle { background: #f0f0f0; color: #555; }
+.light .menu-toggle:hover { background: #e0e0e0; color: #000; }
+</style>
+</head>
+<body>
+<div id="loading-screen" style="position:fixed;top:0;left:0;right:0;bottom:0;background:#1a1a1a;z-index:9999;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:12px;">
+  <div style="width:32px;height:32px;border:3px solid #333;border-top-color:#fff;border-radius:50%;animation:spin 0.8s linear infinite;"></div>
+  <div style="font-size:11px;color:#555;font-weight:700;">TCP Tunnel</div>
+</div>
+<div class="error-toast-wrap" id="error-toast-wrap">
+  <div class="error-toast">
+    <i class="fa-solid fa-triangle-exclamation" id="error-toast-icon"></i>
+    <span id="error-toast-text"></span>
+  </div>
+</div>
+<div class="login-modal" id="startup-login-modal" style="display:none;">
+  <div class="login-modal-card">
+    <div class="account-login-panel">
+      <div class="account-login-mascot"><img src="mascot2.png" alt="login" onerror="this.style.display='none'"></div>
+      <div class="account-login-title">С Возвращением</div>
+      <div class="account-login-sub">Войдите в свой аккаунт</div>
+      <div class="account-login-field">
+        <div class="account-login-label-row">
+          <span class="account-login-label">Email</span>
+        </div>
+        <input class="account-login-input" id="modal-account-login" placeholder="name@example.com" />
+      </div>
+      <div class="account-login-field">
+        <div class="account-login-label-row">
+          <span class="account-login-label">Пароль</span>
+          <span class="account-login-link">Подсказка отключена</span>
+        </div>
+        <div class="password-shell">
+          <input class="account-login-input" id="modal-account-password" type="password" placeholder="********" />
+          <button class="password-toggle" type="button" onclick="togglePasswordVisibility('modal-account-password')"><i class="fa-regular fa-eye"></i></button>
+        </div>
+      </div>
+      <div id="modal-account-2fa-wrap" style="display:none;" class="account-login-field">
+        <div class="account-login-label-row">
+          <span class="account-login-label">Код 2FA</span>
+          <a class="account-login-link" href="#" onclick="resendAccount2fa();return false;">Отправить код ещё раз</a>
+        </div>
+        <input class="account-login-input" id="modal-account-2fa" placeholder="6 цифр" />
+      </div>
+      <button class="account-submit-btn" id="modal-login-submit-btn" onclick="loginAccount('modal')">Войти</button>
+      <button class="account-submit-btn" id="modal-verify-2fa-btn" style="display:none;" onclick="verifyAccount2fa('modal')">Подтвердить 2FA</button>
+      <div class="account-register-line">Публичная версия без авторизации</div>
+      <div class="login-modal-actions">
+        <button class="skip-login-btn" type="button" onclick="skipStartupLogin()">Без входа в аккаунт</button>
+      </div>
+    </div>
+  </div>
+</div>
+<div class="profile-modal" id="profile-details-modal" onclick="if(event.target===this) closeProfileDetails()">
+  <div class="profile-modal-card">
+    <div class="profile-modal-head">
+      <div>
+        <div class="profile-modal-title" id="profile-modal-title">Профиль</div>
+        <div class="profile-modal-sub" id="profile-modal-sub">Данные туннеля</div>
+      </div>
+      <button class="profile-modal-close" type="button" onclick="closeProfileDetails()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <div class="profile-modal-badges" id="profile-modal-badges"></div>
+    <div class="profile-modal-grid" id="profile-modal-grid"></div>
+  </div>
+</div>
+<div class="profile-modal" id="config-editor-modal" onclick="if(event.target===this) closeConfigEditorModal()">
+  <div class="profile-modal-card">
+    <div class="profile-modal-head">
+      <div>
+        <div class="profile-modal-title" id="config-editor-title">Конфиг</div>
+        <div class="profile-modal-sub" id="config-editor-sub">Вставьте `.frp / .toml` конфиг и добавьте его как новый туннель</div>
+      </div>
+      <button class="profile-modal-close" type="button" onclick="closeConfigEditorModal()"><i class="fa-solid fa-xmark"></i></button>
+    </div>
+    <textarea class="input" id="config-input" placeholder="serverAddr = &quot;...&quot;&#10;serverPort = 7000&#10;user = &quot;...&quot;&#10;&#10;[[proxies]]&#10;name = &quot;tunnel&quot;&#10;type = &quot;tcp&quot;&#10;localIP = &quot;127.0.0.1&quot;&#10;localPort = 8080&#10;remotePort = 1026"></textarea>
+  <div class="config-editor-actions">
+      <button class="btn-action" onclick="if (saveManualConfigAsNew()) closeConfigEditorModal();"><i class="fa-solid fa-plus"></i> Добавить</button>
+      <button class="btn-action" onclick="closeConfigEditorModal()"><i class="fa-solid fa-xmark"></i> Закрыть</button>
+    </div>
+  </div>
+</div>
+<style>@keyframes spin { to { transform: rotate(360deg); } }</style>
+<style>
+.sidebar-overlay { position: fixed; top: 0; left: 0; right: 0; bottom: 0; background: rgba(0,0,0,0.6); z-index: 90; opacity: 0; pointer-events: none; transition: opacity 0.25s; }
+.sidebar-overlay.open { opacity: 1; pointer-events: all; }
+.light .sidebar-overlay { background: rgba(0,0,0,0.2); }
+.sidebar { position: fixed; top: 0; left: -260px; width: 260px; bottom: 0; background: #1a1a1a; z-index: 100; transition: left 0.3s cubic-bezier(0.4,0,0.2,1); display: flex; flex-direction: column; }
+.sidebar.open { left: 0; }
+.light .sidebar { background: #ffffff; }
+.sidebar-header { padding: 18px 18px 14px; position: relative; }
+.sidebar-header h2 { font-size: 15px; font-weight: 700; margin-bottom: 2px; }
+.sidebar-header p { font-size: 11px; color: #555; }
+.sidebar-close { position: absolute; top: 14px; right: 14px; background: none; border: none; color: #555; font-size: 16px; cursor: pointer; padding: 4px; }
+.sidebar-close:hover { color: #fff; }
+.light .sidebar-close:hover { color: #000; }
+.sidebar-nav { flex: 1; padding: 8px 10px; overflow-y: auto; }
+.nav-item { display: flex; align-items: center; gap: 12px; padding: 11px 14px; margin-bottom: 4px; border-radius: 8px; cursor: pointer; font-size: 13px; font-weight: 700; color: #ccc; transition: background 0.15s; border: none; background: none; width: 100%; text-align: left; }
+.nav-item:hover { background: #222; }
+.nav-item.active { background: #252525; color: #fff; }
+.light .nav-item { color: #333; }
+.light .nav-item:hover { background: #f5f5f5; }
+.light .nav-item.active { background: #eee; color: #000; }
+.nav-item i { width: 20px; text-align: center; font-size: 14px; opacity: 0.7; }
+.nav-item .nav-arrow { margin-left: auto; font-size: 10px; opacity: 0.3; }
+.sidebar-footer { padding: 14px 18px; font-size: 11px; color: #555; text-align: center; font-weight: 700; }
+</style>
+<style>
+.page { display: none; padding: 16px; height: calc(100vh - 52px); overflow-y: auto; position: relative; }
+.page.active { display: flex; flex-direction: column; }
+#page-saved { overflow-y: auto; }
+#page-saved > * { flex-shrink: 0; }
+#saved-list { display: flex; flex-direction: column; }
+.page-title { font-size: 14px; font-weight: 700; margin-bottom: 14px; display: flex; align-items: center; gap: 8px; color: #ccc; }
+.light .page-title { color: #333; }
+.page-decor { position: absolute; pointer-events: none; bottom: 14px; right: 14px; width: 60px; opacity: 0.15; }
+.light .page-decor { filter: invert(1) grayscale(1); opacity: 0.12; }
+.connect-area { display: flex; flex-direction: column; align-items: center; justify-content: center; flex: 1; gap: 16px; }
+.connect-circle { width: 126px; height: 126px; border-radius: 50%; background: #222; display: flex; align-items: center; justify-content: center; cursor: pointer; transition: all 0.3s; overflow: hidden; }
+.connect-circle:hover { background: #2a2a2a; transform: scale(1.04); }
+.connect-circle.on { background: #fff; box-shadow: 0 0 30px rgba(255,255,255,0.15); animation: connectedGlow 3s ease-in-out infinite; }
+.connect-circle.connecting { animation: pulse 1.5s infinite; }
+.light .connect-circle { background: #f0f0f0; }
+.light .connect-circle.on { background: #111; box-shadow: 0 0 30px rgba(0,0,0,0.15); animation: connectedGlowLight 3s ease-in-out infinite; }
+@keyframes pulse { 0%,100%{box-shadow:0 0 10px rgba(255,255,255,0.1)} 50%{box-shadow:0 0 25px rgba(255,255,255,0.3)} }
+@keyframes connectedGlow { 0%{box-shadow:0 0 15px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)} 33%{box-shadow:0 0 20px rgba(255,255,255,0.18), 0 0 50px rgba(255,255,255,0.08)} 66%{box-shadow:0 0 20px rgba(230,230,230,0.14), 0 0 50px rgba(255,255,255,0.04)} 100%{box-shadow:0 0 15px rgba(255,255,255,0.1), 0 0 40px rgba(255,255,255,0.05)} }
+@keyframes connectedGlowLight { 0%{box-shadow:0 0 15px rgba(0,0,0,0.05), 0 0 40px rgba(0,0,0,0.02)} 33%{box-shadow:0 0 20px rgba(0,0,0,0.10), 0 0 50px rgba(0,0,0,0.04)} 66%{box-shadow:0 0 20px rgba(0,0,0,0.08), 0 0 50px rgba(0,0,0,0.02)} 100%{box-shadow:0 0 15px rgba(0,0,0,0.05), 0 0 40px rgba(0,0,0,0.02)} }
+.connect-mascot { width: 74px; height: 74px; object-fit: contain; transition: transform 0.3s, filter 0.3s; filter: brightness(1.2) contrast(1.3); }
+.connect-circle:hover .connect-mascot { transform: scale(1.1); }
+.connect-circle.on .connect-mascot { filter: invert(1) brightness(0.1) contrast(2); }
+.light .connect-circle.on .connect-mascot { filter: invert(0) brightness(2) contrast(1.5); }
+.connect-label { font-size: 13px; font-weight: 700; color: #666; transition: color 0.3s; }
+.connect-sub { font-size: 11px; color: #555; margin-top: -6px; }
+.input-row { display: flex; gap: 6px; width: 100%; }
+.input { flex: 1; padding: 9px 12px; background: #141414; border: none; border-radius: 10px; color: #f1f3f5; font-size: 11px; outline: none; font-family: 'JetBrains Mono', monospace; }
+.input:focus { background: #101010; }
+.input::placeholder { color: #5c5c5c; }
+.light .input { background: #ebebeb; color: #1a1a1a; }
+.input::-webkit-scrollbar { display: none; }
+.btn-sm { padding: 8px 12px; border: none; border-radius: 8px; font-size: 12px; cursor: pointer; background: #ffffff; color: #1a1a1a; transition: all 0.15s; }
+.btn-sm:hover { background: #ececec; color: #1a1a1a; }
+.light .btn-sm { background: #1a1a1a; color: #ffffff; }
+.topbar { padding: 8px; position: relative; z-index: 50; display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+.topbar-left { display: flex; align-items: center; gap: 6px; flex: 0 0 auto; }
+.topbar-center { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); display: flex; justify-content: center; width: min(190px, calc(100% - 152px)); pointer-events: none; }
+.compatibility-pill { display: none; align-items: center; justify-content: center; min-height: 26px; max-width: 100%; padding: 0 9px; border-radius: 999px; background: #222; color: #f1f3f5; font-size: 10px; font-weight: 700; letter-spacing: 0.01em; white-space: nowrap; text-overflow: ellipsis; overflow: hidden; line-height: 1; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.04); }
+.compatibility-pill span { display: block; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
+.compatibility-pill.show { display: inline-flex; }
+.light .compatibility-pill { background: #f0f0f0; color: #333; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.05); }
+.toolbar-user { display: inline-flex; align-items: center; padding: 0 10px; height: 34px; border-radius: 8px; background: #1a1a1a; color: #bcbcbc; font-size: 11px; font-weight: 700; flex: 0 0 auto; }
+.light .toolbar-user { background: #f0f0f0; color: #555; }
+.profile-dropdown-shell { width: 100%; position: relative; overflow: hidden; }
+.profiles-dropdown { width: 100%; display: flex; flex-direction: column; gap: 6px; max-height: 0; opacity: 0; transform: translateY(-6px); overflow-y: auto; padding: 0; background: #1a1a1a; border-radius: 12px; border: none; transition: max-height 0.28s ease, opacity 0.22s ease, transform 0.22s ease, padding 0.22s ease; }
+.profiles-dropdown.open { max-height: 220px; opacity: 1; transform: translateY(0); padding: 8px; }
+.light .profiles-dropdown { background: #ffffff; border-color: rgba(0,0,0,0.08); }
+.dropdown-empty-plain { display: flex; align-items: center; justify-content: center; min-height: 40px; padding: 4px 0; color: #8b8b8b; font-size: 11px; font-weight: 700; text-align: center; animation: emptyFloat 1.8s ease-in-out infinite; }
+.light .dropdown-empty-plain { color: #8a8a8a; }
+@keyframes emptyFloat { 0%, 100% { opacity: 0.7; transform: translateY(0); } 50% { opacity: 1; transform: translateY(-2px); } }
+.dropdown-trigger i { transition: transform 0.25s ease; }
+.dropdown-trigger.open i { transform: rotate(180deg); }
+.saved-item { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin: 0; padding: 11px 2px 11px 0; background: transparent; border-bottom: 1px solid rgba(255,255,255,0.06); border-radius: 0; }
+.light .saved-item { border-bottom-color: rgba(0,0,0,0.08); }
+.profile-dropdown-item { padding: 12px 12px 12px 14px; border-radius: 14px; border-bottom: none; background: #232323; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.035); }
+.profile-dropdown-item.active { background: #2c2c2c; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.07) !important; padding-left: 14px; }
+.profile-dropdown-item .saved-copy { flex: 1; min-width: 0; }
+.light .profile-dropdown-item { background: #f1f1f1; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04); }
+.light .profile-dropdown-item.active { background: #e7e7e7; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08) !important; }
+.account-card { background: #222; border-radius: 14px; padding: 14px; }
+.light .account-card { background: #f7f7f8; }
+.saved-item.active { background: transparent; box-shadow: inset 2px 0 0 rgba(255,255,255,0.92); padding-left: 8px; }
+.light .saved-item.active { box-shadow: inset 2px 0 0 #222; }
+.saved-copy { min-width: 0; }
+.saved-title-row { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.saved-title { font-size: 12px; font-weight: 700; color: #f1f3f5; }
+.light .saved-title { color: #1a1a1a; }
+.saved-activity-dot { width: 8px; height: 8px; min-width: 8px; border-radius: 50%; background: #4b4b4b; box-shadow: 0 0 0 1px rgba(255,255,255,0.04); }
+.saved-activity-dot.on { background: #76ff8b; box-shadow: 0 0 10px rgba(118,255,139,0.45); }
+.light .saved-activity-dot { background: #bfbfbf; box-shadow: 0 0 0 1px rgba(0,0,0,0.06); }
+.light .saved-activity-dot.on { background: #1c9f43; box-shadow: 0 0 10px rgba(28,159,67,0.24); }
+.saved-meta { font-size: 10px; color: #777; margin-top: 3px; line-height: 1.5; word-break: break-word; }
+.saved-list-card { background: #1a1a1a; border-radius: 16px; padding: 12px 12px 12px 14px; margin-bottom: 10px; border-bottom: none; box-shadow: inset 0 0 0 1px rgba(255,255,255,0.03); }
+.saved-list-card.active { box-shadow: inset 0 0 0 1px rgba(255,255,255,0.08); padding-left: 14px; }
+.light .saved-list-card { background: #ececec; box-shadow: inset 0 0 0 1px rgba(0,0,0,0.04); }
+.light .saved-list-card.active { box-shadow: inset 0 0 0 1px rgba(0,0,0,0.08); }
+.saved-empty-card { width: 100%; background: #242424; border-radius: 18px; padding: 18px 16px; margin-bottom: 12px; border: none; box-shadow: none; min-height: 104px; }
+.light .saved-empty-card { background: #f3f3f3; border: none; box-shadow: none; }
+.saved-empty { padding: 4px 0 0; border: none; box-shadow: none; }
+.saved-empty.saved-empty-card { background: #242424; border: none; box-shadow: none; }
+.saved-empty .saved-title { color: #f1f3f5; }
+.saved-empty .saved-meta { color: #8d8d8d; }
+.saved-empty .saved-copy { width: 100%; text-align: center; }
+.saved-empty.saved-empty-card { display: flex; align-items: center; justify-content: center; }
+.saved-empty .saved-title, .saved-empty .saved-meta { white-space: normal; overflow-wrap: anywhere; }
+.light .saved-empty.saved-empty-card { background: #f3f3f3; border: none; box-shadow: none; }
+.light .saved-empty .saved-title { color: #1a1a1a; }
+.light .saved-empty .saved-meta { color: #777; }
+.saved-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 5px; }
+.saved-badge { padding: 4px 7px; border-radius: 999px; background: #2a2a2a; color: #999; font-size: 9px; font-weight: 700; }
+.light .saved-badge { background: #e4e4e4; color: #666; }
+.saved-badge-unsafe { background: #ffffff; color: #1a1a1a; }
+.light .saved-badge-unsafe { background: #1a1a1a; color: #ffffff; }
+.saved-badge-status-active { background: #ffffff; color: #1a1a1a; }
+.saved-badge-status-running { background: #76ff8b; color: #0f1a12; }
+.light .saved-badge-status-running { background: #1c9f43; color: #ffffff; }
+.saved-badge-status-expired { background: #353535; color: #cfcfcf; }
+.light .saved-badge-status-active { background: #1a1a1a; color: #ffffff; }
+.light .saved-badge-status-expired { background: #d7d7d7; color: #555; }
+.saved-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.saved-list-card { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.saved-list-card .saved-copy { flex: 1; min-width: 0; }
+.saved-list-card .saved-actions { justify-content: flex-end; margin-top: 0; }
+.saved-delete-btn { width: 32px; height: 32px; border: none; border-radius: 999px; background: transparent; color: #ffffff; cursor: pointer; transition: background 0.15s ease, color 0.15s ease, transform 0.15s ease; }
+.saved-delete-btn:hover { background: rgba(255,255,255,0.08); color: #ffffff; transform: translateY(-1px); }
+.light .saved-delete-btn { color: #1a1a1a; }
+.light .saved-delete-btn:hover { background: rgba(0,0,0,0.06); color: #1a1a1a; }
+.account-grid { display: flex; flex-direction: column; gap: 10px; width: 100%; align-items: center; }
+.account-page-shell { flex: 1; display: flex; width: 100%; justify-content: center; align-items: center; padding-top: 0; }
+.account-login-panel { background: #242424; border-radius: 20px; padding: 24px 18px 20px; width: min(100%, 370px); margin: 0 auto; border: none; box-shadow: 0 14px 28px rgba(0,0,0,0.22); }
+.light .account-login-panel { background: #ffffff; box-shadow: 0 10px 24px rgba(0,0,0,0.08); }
+.account-login-mascot { display: flex; justify-content: center; margin-bottom: 10px; }
+.account-login-mascot img { width: 66px; height: 66px; object-fit: contain; filter: grayscale(1) contrast(1.05); }
+.account-login-title { font-size: 18px; font-weight: 700; margin-bottom: 4px; text-align: center; color: #f5f5f5; }
+.light .account-login-title { color: #171717; }
+.account-login-sub { font-size: 12px; color: #9b9b9b; text-align: center; margin-bottom: 16px; line-height: 1.6; }
+.light .account-login-sub { color: #666; }
+.account-login-field { margin-bottom: 12px; }
+.account-login-label-row { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.account-login-label { font-size: 11px; font-weight: 700; color: #f0f0f0; }
+.light .account-login-label { color: #2b2b2b; }
+.account-login-link { font-size: 11px; color: #8f8f8f; text-decoration: none; }
+.account-login-link:hover { color: #d8d8d8; text-decoration: none; }
+.light .account-login-link { color: #777; }
+.light .account-login-link:hover { color: #555; }
+.account-login-input { width: 100%; height: 43px; border-radius: 12px; border: none; background: #141414; color: #f5f5f5; padding: 0 14px; font-size: 12px; outline: none; caret-color: #f5f5f5; appearance: none; }
+.light .account-login-input { background: #ebebeb; color: #1a1a1a; caret-color: #1a1a1a; }
+.account-login-input::placeholder { color: #7f7f7f; }
+.light .account-login-input::placeholder { color: #a0a0a0; }
+.account-login-input:focus { background: #101010; }
+.light .account-login-input:focus { background: #e3e3e3; }
+.account-login-input:-webkit-autofill,
+.account-login-input:-webkit-autofill:hover,
+.account-login-input:-webkit-autofill:focus { -webkit-text-fill-color: #f5f5f5; -webkit-box-shadow: 0 0 0 1000px #141414 inset; transition: background-color 9999s ease-in-out 0s; }
+.light .account-login-input:-webkit-autofill,
+.light .account-login-input:-webkit-autofill:hover,
+.light .account-login-input:-webkit-autofill:focus { -webkit-text-fill-color: #1a1a1a; -webkit-box-shadow: 0 0 0 1000px #ebebeb inset; }
+.password-shell { position: relative; }
+.password-shell .account-login-input { padding-right: 42px; }
+.password-toggle { position: absolute; top: 50%; right: 12px; transform: translateY(-50%); border: none; background: transparent; color: #8f8f8f; cursor: pointer; font-size: 14px; }
+.password-toggle:hover { color: #d8d8d8; }
+.light .password-toggle { color: #777; }
+.light .password-toggle:hover { color: #555; }
+.account-submit-btn { width: 100%; height: 46px; border: none; border-radius: 12px; background: #f3f4f7; color: #15181d; font-size: 13px; font-weight: 700; cursor: pointer; margin-top: 4px; transition: background 0.15s; }
+.account-submit-btn:hover { background: #ffffff; }
+.light .account-submit-btn { background: #1f1f1f; color: #ffffff; }
+.light .account-submit-btn:hover { background: #2a2a2a; }
+.account-register-line { text-align: center; margin-top: 16px; font-size: 12px; color: #e5e7eb; }
+.account-register-line a { color: #ffffff; font-weight: 700; }
+.account-register-line a:hover { color: #f3f4f6; }
+.light .account-register-line { color: #2b2b2b; }
+.light .account-register-line a { color: #2b2b2b; }
+.light .account-register-line a:hover { color: #000; }
+.account-info-table { display: flex; flex-direction: column; gap: 8px; }
+.account-info-row { display: flex; justify-content: space-between; gap: 10px; padding: 9px 0; border-bottom: 1px solid #2a2a2a; font-size: 11px; }
+.account-info-row:last-child { border-bottom: none; }
+.account-info-row span:first-child { color: #888; }
+.account-info-row span:last-child { color: #eee; font-family: 'JetBrains Mono', monospace; font-weight: 700; text-align: right; word-break: break-word; }
+.light .account-info-row { border-color: #ddd; }
+.light .account-info-row span:first-child { color: #666; }
+.light .account-info-row span:last-child { color: #222; }
+.small-link { font-size: 11px; color: #888; text-decoration: none; cursor: pointer; }
+.small-link:hover { color: #ccc; text-decoration: underline; }
+.page-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.info-panel { background: #222; border-radius: 10px; padding: 12px 16px; width: 100%; }
+.light .info-panel { background: #f0f0f0; }
+.info-row { display: flex; justify-content: space-between; padding: 4px 0; font-size: 11px; cursor: pointer; }
+.info-row:hover span:last-child { opacity: 0.7; }
+.info-row span:first-child { color: #888; display: flex; align-items: center; gap: 6px; }
+.info-row span:last-child { color: #eee; font-family: 'JetBrains Mono', monospace; font-weight: 700; user-select: text; font-size: 11px; }
+.light .info-row span:first-child { color: #666; }
+.light .info-row span:last-child { color: #222; }
+</style>
+<style>
+.stats-cards { display: flex; gap: 8px; margin-bottom: 12px; }
+.stat-card { flex: 1; background: #222; border-radius: 10px; padding: 12px; display: flex; align-items: center; gap: 10px; }
+.light .stat-card { background: #f0f0f0; }
+.stat-icon { width: 32px; height: 32px; border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 13px; }
+.stat-icon.up { background: rgba(255,255,255,0.08); color: #f1f3f5; }
+.light .stat-icon.up { background: rgba(0,0,0,0.08); color: #444; }
+.stat-icon.down { background: rgba(255,255,255,0.05); color: #cfcfcf; }
+.light .stat-icon.down { background: rgba(0,0,0,0.05); color: #666; }
+.stat-value { font-size: 13px; font-weight: 700; }
+.stat-label { font-size: 9px; color: #666; margin-top: 1px; }
+.chart-container { background: #222; border-radius: 10px; padding: 12px; margin-bottom: 12px; }
+.light .chart-container { background: #f0f0f0; }
+.chart-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 8px; font-size: 10px; font-weight: 700; color: #666; }
+.chart-legend { display: flex; align-items: center; gap: 8px; font-size: 9px; font-weight: 400; }
+.legend-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.legend-dot.up { background: #f1f3f5; }
+.legend-dot.down { background: #888; }
+#traffic-chart { width: 100%; height: 130px; display: block; }
+.stats-extra { background: #222; border-radius: 10px; padding: 10px 14px; }
+.light .stats-extra { background: #f0f0f0; }
+.stat-row { display: flex; justify-content: space-between; padding: 5px 0; font-size: 11px; }
+.stat-row span:first-child { color: #666; }
+.stat-row span:last-child { font-weight: 700; font-family: 'JetBrains Mono', monospace; font-size: 11px; color: #ccc; }
+.light .stat-row span:last-child { color: #333; }
+.settings-list { display: flex; flex-direction: column; gap: 4px; }
+.setting-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 12px; background: #222; border-radius: 10px; }
+.light .setting-row { background: #f0f0f0; }
+.setting-left { display: flex; align-items: center; gap: 10px; flex: 1; min-width: 0; }
+.setting-copy { flex: 1; min-width: 0; }
+.setting-icon { width: 30px; min-width: 30px; height: 30px; border-radius: 8px; background: #2a2a2a; display: flex; align-items: center; justify-content: center; color: #888; font-size: 12px; flex: 0 0 30px; }
+.light .setting-icon { background: #e0e0e0; color: #555; }
+.setting-label { font-size: 12px; font-weight: 700; color: #ccc; }
+.light .setting-label { color: #333; }
+.setting-desc { font-size: 9px; color: #555; margin-top: 1px; line-height: 1.45; }
+.light .setting-desc { color: #999; }
+.setting-disabled { opacity: 0.55; }
+.setting-disabled .setting-icon { background: #1c1c1c; color: #555; }
+.light .setting-disabled .setting-icon { background: #e8e8e8; color: #999; }
+.settings-credit { margin-top: auto; padding-top: 14px; text-align: center; font-size: 11px; color: #555; font-weight: 700; }
+.settings-credit a { color: #888; text-decoration: none; }
+.settings-credit a:hover { color: #ccc; text-decoration: underline; }
+</style>
+<style>
+.switch { position: relative; display: inline-block; width: 40px; height: 22px; flex-shrink: 0; }
+.switch input { opacity: 0; width: 0; height: 0; }
+.slider { position: absolute; cursor: pointer; top: 0; left: 0; right: 0; bottom: 0; background: #333; border-radius: 22px; transition: 0.3s; }
+.slider::before { content: ''; position: absolute; height: 16px; width: 16px; left: 3px; bottom: 3px; background: #888; border-radius: 50%; transition: 0.3s; }
+.switch input:checked + .slider { background: #fff; }
+.switch input:checked + .slider::before { transform: translateX(18px); background: #1a1a1a; }
+.switch input:disabled + .slider { cursor: default; background: #2e2e2e; }
+.switch input:disabled + .slider::before { background: #6a6a6a; }
+.light .slider { background: #ccc; }
+.light .slider::before { background: #fff; }
+.light .switch input:checked + .slider { background: #333; }
+.light .switch input:checked + .slider::before { background: #fff; }
+.light .switch input:disabled + .slider { background: #d8d8d8; }
+.light .switch input:disabled + .slider::before { background: #b8b8b8; }
+.field-label { font-size: 9px; font-weight: 700; color: #444; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 4px; }
+.light .field-label { color: #aaa; }
+textarea.input { height: 280px; resize: none; white-space: pre-wrap; overflow: auto; border-radius: 10px; font-size: 10px; padding: 10px 12px; line-height: 1.6; }
+input.input { height: 32px; min-height: 32px; }
+#conn { height: 34px; padding: 7px 10px; background: #141414; font-size: 10px; }
+.config-conn-input { width: 100%; display: block; box-sizing: border-box; height: 34px !important; min-height: 34px !important; max-height: 34px !important; padding: 0 10px !important; background: #141414; border: none; border-radius: 10px; color: #f1f3f5; font-size: 10px; line-height: 34px; outline: none; font-family: 'JetBrains Mono', monospace; white-space: nowrap; overflow: hidden; appearance: none; -webkit-appearance: none; }
+.config-conn-input:focus { background: #101010; }
+.config-conn-input::placeholder { color: #5c5c5c; }
+.light .config-conn-input { background: #ebebeb; color: #1a1a1a; }
+.light .config-conn-input:focus { background: #e3e3e3; }
+.light .config-conn-input::placeholder { color: #8c8c8c; }
+#conn-input { height: 34px !important; min-height: 34px !important; max-height: 34px !important; }
+#config-input { width: 100%; height: 260px; padding-top: 10px; }
+.editor-inline-row { display: flex; align-items: center; gap: 8px; }
+.input-with-action { flex: 1; display: flex; align-items: center; gap: 8px; }
+.field-plus-btn { width: 34px; height: 34px; border: none; border-radius: 10px; background: #ffffff; color: #1a1a1a; display: inline-flex; align-items: center; justify-content: center; cursor: pointer; flex-shrink: 0; transition: background 0.15s ease, transform 0.15s ease; }
+.field-plus-btn:hover { background: #ececec; transform: translateY(-1px); }
+.config-add-btn { width: 34px; height: 32px; margin-top: 8px; border-radius: 10px; }
+.light .field-plus-btn { background: #1a1a1a; color: #ffffff; }
+.light .field-plus-btn:hover { background: #2b2b2b; }
+.btn-action { padding: 8px 14px; border: none; border-radius: 10px; font-size: 11px; font-weight: 700; cursor: pointer; background: #ffffff; color: #1a1a1a; transition: background 0.15s; margin-top: 8px; display: inline-flex; align-items: center; gap: 6px; }
+.btn-action:hover { background: #ececec; color: #1a1a1a; }
+.light .btn-action { background: #1a1a1a; color: #ffffff; }
+.btn-action-compact { margin-top: 0; padding: 8px 12px; }
+.config-editor-actions { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 10px; }
+.saved-actions-bar { margin-top: auto; position: sticky; bottom: 0; padding-top: 12px; padding-bottom: 4px; background: linear-gradient(180deg, rgba(26,26,26,0), rgba(26,26,26,0.92) 28%, rgba(26,26,26,1) 100%); z-index: 3; }
+.light .saved-actions-bar { background: linear-gradient(180deg, rgba(255,255,255,0), rgba(255,255,255,0.94) 28%, rgba(255,255,255,1) 100%); }
+.log { background: #111; border-radius: 8px; padding: 10px 12px; flex: 1; min-height: 80px; overflow-y: auto; font-family: 'JetBrains Mono', monospace; font-size: 9px; line-height: 1.8; color: #555; user-select: text; }
+.light .log { background: #f8f8f8; color: #888; }
+.log .s { color: #ffffff; }
+.log .w { color: #cfcfcf; }
+.log .e { color: #d9d9d9; }
+.error-toast-wrap { position: fixed; top: 8px; left: 0; right: 0; display: flex; justify-content: center; padding: 0 8px; pointer-events: none; z-index: 12000; opacity: 0; transform: translateY(-12px); transition: opacity 0.22s ease, transform 0.22s ease; }
+.error-toast-wrap.show { opacity: 1; transform: translateY(0); }
+.error-toast { width: min(360px, calc(100vw - 16px)); min-width: 0; max-width: calc(100vw - 16px); padding: 8px 11px; border-radius: 12px; border: 1px solid rgba(255,255,255,0.08); background: linear-gradient(180deg, rgba(30,30,30,0.96), rgba(20,20,20,0.96)); box-shadow: 0 12px 28px rgba(0, 0, 0, 0.45), 0 0 0 1px rgba(255,255,255,0.04) inset; color: #f1f3f5; font-size: 11px; line-height: 1.25; font-weight: 700; display: flex; align-items: flex-start; gap: 7px; }
+.error-toast i { color: #d7d7d7; }
+.error-toast span { line-height: 1.25; }
+.error-toast-wrap.success .error-toast { border-color: rgba(255,255,255,0.10); background: linear-gradient(180deg, rgba(36,36,36,0.98), rgba(24,24,24,0.98)); color: #f7f7f7; }
+.error-toast-wrap.success .error-toast i { color: #ffffff; }
+.light .error-toast { border-color: rgba(0,0,0,0.08); background: linear-gradient(180deg, rgba(250,250,250,0.98), rgba(240,240,240,0.98)); color: #333; box-shadow: 0 10px 24px rgba(0, 0, 0, 0.16), 0 0 0 1px rgba(0,0,0,0.04) inset; }
+.light .error-toast i { color: #666; }
+.light .error-toast-wrap.success .error-toast { border-color: rgba(0,0,0,0.08); background: linear-gradient(180deg, rgba(250,250,250,0.98), rgba(240,240,240,0.98)); color: #1a1a1a; }
+.light .error-toast-wrap.success .error-toast i { color: #1a1a1a; }
+.info-box { background: #222; border-radius: 12px; padding: 20px; flex: 1; }
+.light .info-box { background: #f5f5f5; }
+.info-logo-row { display: flex; align-items: center; gap: 14px; margin-bottom: 6px; }
+.info-box h3 { font-size: 18px; margin-bottom: 2px; }
+.info-box .version { font-size: 12px; color: #888; }
+.info-box hr { border: none; border-top: 1px solid #2a2a2a; margin: 12px 0; }
+.light .info-box hr { border-color: #ddd; }
+.info-box .how-to { font-size: 13px; margin-bottom: 6px; }
+.info-box .steps { font-size: 12px; color: #888; padding-left: 18px; line-height: 1.8; }
+.info-box .section-title { font-size: 13px; font-weight: 700; margin-bottom: 8px; }
+.contacts p { font-size: 12px; color: #888; user-select: text; margin-bottom: 4px; display: flex; align-items: center; gap: 6px; }
+.contacts a { color: #ccc; text-decoration: none; }
+.contacts a:hover { color: #fff; text-decoration: underline; }
+.light .contacts a { color: #333; }
+.credit { font-size: 11px; color: #555; margin-top: 14px; text-align: center; font-weight: 700; }
+.credit a { color: #888; text-decoration: none; }
+.credit a:hover { color: #ccc; text-decoration: underline; }
+.update-screen {
+  position: fixed;
+  inset: 0;
+  z-index: 10000;
+  display: none;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  color: #f3f5f7;
+  background: rgba(6, 7, 9, 0.48);
+  backdrop-filter: blur(18px) saturate(120%);
+}
+.update-panel {
+  width: min(420px, calc(100vw - 32px));
+  border: none;
+  background: linear-gradient(180deg, rgba(20, 22, 26, 0.94), rgba(14, 15, 18, 0.86));
+  border-radius: 18px;
+  padding: 18px 18px 16px;
+  box-shadow: 0 22px 60px rgba(0, 0, 0, 0.42);
+  overflow: hidden;
+}
+.update-panel h1 { font-size: 20px; margin-bottom: 8px; letter-spacing: -0.02em; }
+.update-panel p { color: #a6a6a6; line-height: 1.5; font-size: 12px; }
+.update-meta { margin-top: 12px; display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
+.update-meta div {
+  padding: 9px 11px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  border: none;
+  font-size: 11px;
+  color: #c9c9c9;
+}
+.update-actions { display: flex; gap: 8px; margin-top: 16px; }
+.update-actions button { flex: 1; height: 38px; border: none; border-radius: 12px; font-size: 12px; font-weight: 700; cursor: pointer; }
+.update-btn { background: #f2f2f2; color: #1a1a1a; }
+.update-secondary { background: rgba(255, 255, 255, 0.08); color: #e0e0e0; }
+.login-modal { position: fixed; inset: 0; z-index: 9500; display: none; align-items: center; justify-content: center; padding: 12px; background: rgba(13, 11, 10, 0.78); backdrop-filter: none; overflow-y: auto; }
+.login-modal.show { display: flex; }
+.login-modal-card { width: min(390px, calc(100vw - 24px)); margin: 0 auto; max-height: calc(100vh - 24px); }
+.login-modal-actions { display: flex; justify-content: center; gap: 10px; margin-top: 6px; flex-wrap: wrap; }
+.skip-login-btn { display: inline-block; min-width: 0; height: auto; border: none; border-radius: 0; background: transparent; color: #9f9f9f; font-size: 11px; font-weight: 500; cursor: pointer; padding: 2px 0 0; }
+.skip-login-btn:hover { background: transparent; color: #d7d7d7; }
+.light .skip-login-btn { background: transparent; color: #8a8a8a; }
+.light .skip-login-btn:hover { background: transparent; color: #555; }
+#startup-login-modal .account-login-panel { background: #242424; border: none; box-shadow: 0 18px 34px rgba(0,0,0,0.32); max-height: calc(100vh - 40px); overflow-y: auto; }
+#startup-login-modal .account-login-title { color: #f5f5f5; }
+#startup-login-modal .account-login-sub { color: #9b9b9b; }
+#startup-login-modal .account-login-label { color: #f0f0f0; }
+#startup-login-modal .account-login-link { color: #8f8f8f; }
+#startup-login-modal .account-login-link:hover { color: #d8d8d8; }
+#startup-login-modal .account-login-input { background: #1a1a1a; border: none; color: #f5f5f5; }
+#startup-login-modal .account-login-input::placeholder { color: #7f7f7f; }
+#startup-login-modal .account-login-input:focus { background: #1a1a1a; }
+#startup-login-modal .account-login-input:-webkit-autofill,
+#startup-login-modal .account-login-input:-webkit-autofill:hover,
+#startup-login-modal .account-login-input:-webkit-autofill:focus { -webkit-text-fill-color: #f5f5f5; -webkit-box-shadow: 0 0 0 1000px #1a1a1a inset; }
+#startup-login-modal .password-toggle { color: #8f8f8f; }
+#startup-login-modal .password-toggle:hover { color: #d8d8d8; }
+#startup-login-modal .account-register-line { color: #d6d6d6; }
+#startup-login-modal .account-register-line a { color: #f5f5f5; }
+#startup-login-modal .skip-login-btn { color: #a8a8a8; }
+#startup-login-modal .skip-login-btn:hover { color: #e0e0e0; }
+.profile-modal { position: fixed; inset: 0; z-index: 9600; display: none; align-items: center; justify-content: center; padding: 12px; background: rgba(13, 11, 10, 0.82); overflow-y: auto; }
+.profile-modal.show { display: flex; }
+.profile-modal-card { width: min(430px, calc(100vw - 24px)); background: #242424; border-radius: 20px; padding: 18px; box-shadow: 0 20px 40px rgba(0,0,0,0.3); max-height: calc(100vh - 24px); overflow-y: auto; }
+.light .profile-modal-card { background: #ffffff; box-shadow: 0 14px 30px rgba(0,0,0,0.08); }
+#config-editor-modal { padding: 12px; }
+#config-editor-modal .profile-modal-card { width: min(380px, calc(100vw - 24px)); max-height: calc(100vh - 24px); padding: 14px; display: flex; flex-direction: column; }
+#config-editor-modal .profile-modal-head { margin-bottom: 12px; }
+#config-editor-modal #config-input { width: 100%; min-height: 150px; height: min(190px, calc(100vh - 260px)); max-height: calc(100vh - 260px); }
+.profile-modal-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 10px; margin-bottom: 14px; }
+.profile-modal-title { font-size: 18px; font-weight: 700; color: #f5f5f5; }
+.light .profile-modal-title { color: #1a1a1a; }
+.profile-modal-sub { margin-top: 4px; font-size: 11px; color: #989898; }
+.profile-modal-close { width: 34px; height: 34px; border: none; border-radius: 10px; background: #1a1a1a; color: #ffffff; cursor: pointer; }
+.profile-modal-close:hover { background: #111; }
+.light .profile-modal-close { background: #1a1a1a; color: #ffffff; }
+.profile-modal-grid { display: grid; grid-template-columns: 1fr; gap: 8px; }
+.profile-modal-row { display: flex; justify-content: space-between; gap: 12px; padding: 10px 12px; border-radius: 12px; background: #1a1a1a; }
+.light .profile-modal-row { background: #f1f1f1; }
+.profile-modal-row span:first-child { color: #8d8d8d; font-size: 11px; }
+.profile-modal-row span:last-child { color: #f2f2f2; font-size: 11px; font-weight: 700; text-align: right; word-break: break-word; font-family: 'JetBrains Mono', monospace; }
+.light .profile-modal-row span:first-child { color: #777; }
+.light .profile-modal-row span:last-child { color: #1a1a1a; }
+.profile-modal-badges { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 12px; }
+
+@media (max-height: 760px) {
+  .topbar-center { width: min(156px, calc(100% - 140px)); }
+  .compatibility-pill { min-height: 22px; padding: 0 7px; font-size: 9px; }
+  .login-modal { padding: 8px; }
+  .login-modal-card { width: min(390px, calc(100vw - 16px)); max-height: calc(100vh - 16px); }
+  .account-login-panel { padding: 18px 14px 14px; }
+  .account-login-mascot { margin-bottom: 8px; }
+  .account-login-mascot img { width: 54px; height: 54px; }
+  .account-login-title { font-size: 17px; margin-bottom: 3px; }
+  .account-login-sub { margin-bottom: 12px; line-height: 1.45; }
+  .account-login-field { margin-bottom: 10px; }
+  .account-login-input { height: 40px; }
+  .account-submit-btn { height: 42px; }
+  .account-register-line { margin-top: 12px; }
+  .error-toast { width: min(340px, calc(100vw - 12px)); padding: 7px 10px; font-size: 10.5px; }
+  .profile-modal-card { padding: 14px; }
+  #config-editor-modal .profile-modal-card { padding: 12px; }
+  #config-editor-modal #config-input { min-height: 140px; height: min(170px, calc(100vh - 230px)); max-height: calc(100vh - 230px); }
+}
+
+@media (max-width: 500px) {
+  .topbar-center { width: min(148px, calc(100% - 132px)); }
+  .compatibility-pill { min-height: 20px; padding: 0 6px; font-size: 8.5px; }
+  .account-login-panel { width: min(100%, 350px); }
+  .account-login-link, .skip-login-btn { font-size: 10px; }
+  .account-submit-btn { font-size: 12px; }
+  .error-toast { width: min(320px, calc(100vw - 12px)); }
+}
+.setting-input { width: 80px; padding: 6px 8px; background: #141414; border: none; border-radius: 6px; color: #f1f3f5; font-size: 11px; font-family: 'JetBrains Mono', monospace; outline: none; text-align: center; }
+.light .setting-input { background: #e3e3e3; color: #1a1a1a; }
+select.setting-input { font-family: 'Comic Neue', cursive; cursor: pointer; appearance: none; -webkit-appearance: none; }
+select.setting-input option { background: #222; color: #f1f3f5; }
+.light select.setting-input option { background: #fff; color: #1a1a1a; }
+</style>
+
+<div class="topbar">
+  <div class="topbar-left">
+    <button class="menu-toggle" id="menu-btn" onclick="toggleMenu()"><i class="fa-solid fa-bars"></i></button>
+    <button class="menu-toggle" id="home-btn" onclick="goHome()"><i class="fa-solid fa-house"></i></button>
+  </div>
+  <div class="topbar-center">
+    <div class="compatibility-pill" id="compatibility-pill"><span>Режим совместимости</span></div>
+  </div>
+  <div class="toolbar-user" id="header-user">Public version</div>
+</div>
+<div class="sidebar-overlay" id="sidebar-overlay" onclick="toggleMenu()"></div>
+<div class="sidebar" id="sidebar">
+  <div class="sidebar-header">
+    <button class="sidebar-close" onclick="toggleMenu()"><i class="fa-solid fa-xmark"></i></button>
+    <h2>Меню</h2>
+    <p>TCP Tunnel v3.2.7</p>
+  </div>
+  <div class="sidebar-nav">
+    <button class="nav-item active" data-page="main"><i class="fa-solid fa-house"></i> Главная <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+    <button class="nav-item" data-page="saved"><i class="fa-solid fa-file-code"></i> Конфиги <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+    <button class="nav-item" data-page="stats"><i class="fa-solid fa-chart-line"></i> Статистика <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+    <button class="nav-item" data-page="log"><i class="fa-solid fa-terminal"></i> Лог <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+    <button class="nav-item" data-page="settings"><i class="fa-solid fa-gear"></i> Настройки <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+    <button class="nav-item" data-page="info"><i class="fa-solid fa-circle-info"></i> О программе <i class="fa-solid fa-chevron-right nav-arrow"></i></button>
+  </div>
+  <div class="sidebar-footer">TCP Tunnel &copy; 2025 &middot; v3.2.7</div>
+</div>
+
+<div class="page active" id="page-main">
+  <div class="connect-area">
+    <div class="connect-circle" id="connect-btn" onclick="toggleConnect()">
+      <img src="mascot2.png" class="connect-mascot" onerror="this.style.display='none'">
+    </div>
+    <span class="connect-label" id="connect-label">Нажмите для подключения</span>
+    <span class="connect-sub" id="connect-sub">Отключено</span>
+    <div class="input-row">
+      <input type="text" class="input" id="conn" placeholder="Выберите сохранённый профиль" readonly />
+      <button class="btn-sm dropdown-trigger" id="profile-dropdown-trigger" onclick="toggleProfileDropdown()" title="Список профилей"><i class="fa-solid fa-chevron-down"></i></button>
+    </div>
+    <div class="profile-dropdown-shell">
+      <div class="profiles-dropdown" id="profile-dropdown"></div>
+    </div>
+    <div class="info-panel" id="info-panel">
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-globe"></i> Сервер</span><span id="i-host">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-server"></i> Сервер + порт</span><span id="i-server-endpoint">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-user"></i> Пользователь</span><span id="i-user">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-house"></i> Локальный адрес</span><span id="i-local">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-hashtag"></i> Локальный порт</span><span id="i-lport">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-tower-broadcast"></i> Удалённый порт</span><span id="i-rport">—</span></div>
+      <div class="info-row" onclick="copyText(this)"><span><i class="fa-solid fa-clock"></i> Истекает</span><span id="i-expires">—</span></div>
+    </div>
+  </div>
+  <img src="mascot4.png" class="page-decor" onerror="this.style.display='none'" />
+</div>
+
+<div class="page" id="page-stats">
+  <div class="page-title"><i class="fa-solid fa-chart-line"></i> Статистика трафика</div>
+  <div class="stats-cards">
+    <div class="stat-card"><div class="stat-icon up"><i class="fa-solid fa-arrow-up"></i></div><div><div class="stat-value" id="stat-up">0 B</div><div class="stat-label">Исходящий</div></div></div>
+    <div class="stat-card"><div class="stat-icon down"><i class="fa-solid fa-arrow-down"></i></div><div><div class="stat-value" id="stat-down">0 B</div><div class="stat-label">Входящий</div></div></div>
+  </div>
+  <div class="chart-container">
+    <div class="chart-header"><span>Трафик в реальном времени</span><span class="chart-legend"><span class="legend-dot up"></span> Исх. <span class="legend-dot down"></span> Вх.</span></div>
+    <canvas id="traffic-chart" width="360" height="130"></canvas>
+  </div>
+  <div class="stats-extra">
+    <div class="stat-row"><span>Время подключения</span><span id="stat-uptime">—</span></div>
+    <div class="stat-row"><span>Пиковая скорость ↑</span><span id="stat-peak-up">0 B/s</span></div>
+    <div class="stat-row"><span>Пиковая скорость ↓</span><span id="stat-peak-down">0 B/s</span></div>
+  </div>
+  <img src="mascot.png" class="page-decor" style="opacity:0.1;" onerror="this.style.display='none'" />
+</div>
+
+<div class="page" id="page-saved">
+  <div class="page-title"><i class="fa-solid fa-file-code"></i> Конфиги</div>
+  <div id="saved-list"></div>
+  <label class="field-label" style="margin-top:10px;">Строка подключения</label>
+  <div class="editor-inline-row">
+    <div class="input-with-action">
+      <input type="text" class="config-conn-input" id="conn-input" placeholder="tcptunnel://connect?..." />
+    </div>
+    <button class="field-plus-btn" type="button" onclick="saveManualStringAsNew()" title="Добавить новый туннель"><i class="fa-solid fa-plus"></i></button>
+  </div>
+  <div class="config-editor-actions saved-actions-bar">
+    <button class="btn-action" onclick="saveManualString()"><i class="fa-solid fa-floppy-disk"></i> Сохранить</button>
+    <button class="btn-action" onclick="doPickFileConfig()"><i class="fa-solid fa-file-import"></i> Загрузить</button>
+    <button class="btn-action" type="button" onclick="openConfigEditorModal()"><i class="fa-solid fa-plus"></i> Конфиг</button>
+  </div>
+  <img src="buy-icon.png" class="page-decor" style="width:40px;opacity:0.1;" onerror="this.style.display='none'" />
+</div>
+
+<div class="page" id="page-account" style="display:none;">
+  <div class="page-title"><i class="fa-solid fa-user"></i> Аккаунт</div>
+  <div class="account-grid">
+    <div class="account-page-shell" id="account-login-card">
+      <div class="account-login-panel">
+        <div class="account-login-mascot"><img src="mascot2.png" alt="login" onerror="this.style.display='none'"></div>
+        <div class="account-login-title">С Возвращением</div>
+        <div class="account-login-sub">Войдите в свой аккаунт</div>
+        <div class="account-login-field">
+          <div class="account-login-label-row">
+            <span class="account-login-label">Email</span>
+          </div>
+          <input class="account-login-input" id="account-login" placeholder="name@example.com" />
+        </div>
+        <div class="account-login-field">
+          <div class="account-login-label-row">
+            <span class="account-login-label">Пароль</span>
+            <span class="account-login-link">Подсказка отключена</span>
+          </div>
+          <div class="password-shell">
+            <input class="account-login-input" id="account-password" type="password" placeholder="********" />
+            <button class="password-toggle" type="button" onclick="togglePasswordVisibility()"><i class="fa-regular fa-eye"></i></button>
+          </div>
+        </div>
+        <div id="account-2fa-wrap" style="display:none;" class="account-login-field">
+          <div class="account-login-label-row">
+            <span class="account-login-label">Код 2FA</span>
+            <a class="account-login-link" href="#" onclick="resendAccount2fa();return false;">Отправить код ещё раз</a>
+          </div>
+          <input class="account-login-input" id="account-2fa" placeholder="6 цифр" />
+        </div>
+        <button class="account-submit-btn" id="login-submit-btn" onclick="loginAccount()">Войти</button>
+        <button class="account-submit-btn" id="verify-2fa-btn" style="display:none;" onclick="verifyAccount2fa()">Подтвердить 2FA</button>
+        <div class="account-register-line">Публичная версия без авторизации</div>
+      </div>
+    </div>
+    <div class="account-card" id="account-summary-card" style="display:none;">
+      <div class="saved-title" style="margin-bottom:8px;">Данные аккаунта</div>
+      <div class="account-info-table">
+        <div class="account-info-row"><span>Логин</span><span id="account-name-view">—</span></div>
+        <div class="account-info-row"><span>Почта</span><span id="account-email-view">—</span></div>
+        <div class="account-info-row"><span>Роль</span><span id="account-role-view">—</span></div>
+        <div class="account-info-row"><span>Баланс</span><span id="account-balance-view">—</span></div>
+      </div>
+      <div class="page-actions">
+        <button class="btn-action btn-action-compact" onclick="refreshAccountState(true)"><i class="fa-solid fa-rotate"></i> Обновить туннели</button>
+        <button class="btn-action btn-action-compact" onclick="openBuyPage()"><i class="fa-solid fa-cart-shopping"></i> Купить туннель</button>
+        <button class="btn-action btn-action-compact" onclick="openSite()"><i class="fa-solid fa-globe"></i> Сайт</button>
+        <button class="btn-action btn-action-compact" onclick="logoutAccount()"><i class="fa-solid fa-right-from-bracket"></i> Выйти</button>
+      </div>
+    </div>
+    <div class="account-card">
+      <div class="saved-title" style="margin-bottom:8px;">Туннели аккаунта</div>
+      <div id="account-tunnels"></div>
+    </div>
+  </div>
+</div>
+
+<div class="page" id="page-log">
+  <div class="page-title"><i class="fa-solid fa-terminal"></i> Журнал событий</div>
+  <div class="log" id="log"></div>
+  <button class="btn-action" onclick="clearLog()"><i class="fa-solid fa-trash"></i> Очистить</button>
+</div>
+
+<div class="page" id="page-settings">
+  <div class="page-title"><i class="fa-solid fa-gear"></i> Настройки</div>
+  <div class="settings-list">
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-moon"></i></div><div class="setting-copy"><div class="setting-label">Тёмная тема</div><div class="setting-desc">Переключить оформление</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-theme" checked onchange="toggleTheme()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-bolt"></i></div><div class="setting-copy"><div class="setting-label">Автоподключение</div><div class="setting-desc">Подключаться при запуске</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-auto" onchange="saveState()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-window-minimize"></i></div><div class="setting-copy"><div class="setting-label">Сворачивать в трей</div><div class="setting-desc">При закрытии сворачивать</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-tray" onchange="toggleTray()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-bell"></i></div><div class="setting-copy"><div class="setting-label">Звуковые уведомления</div><div class="setting-desc">Звук при подключении/отключении</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-notify" checked onchange="saveState()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-rotate"></i></div><div class="setting-copy"><div class="setting-label">Автопереподключение</div><div class="setting-desc">Переподключаться при обрыве</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-reconnect" checked onchange="saveState()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-power-off"></i></div><div class="setting-copy"><div class="setting-label">Запуск с Windows</div><div class="setting-desc">Запускаться при старте системы</div></div></div>
+      <label class="switch"><input type="checkbox" id="toggle-autostart" onchange="toggleAutostart()"><span class="slider"></span></label>
+    </div>
+    <div class="setting-row">
+      <div class="setting-left"><div class="setting-icon"><i class="fa-solid fa-heart-pulse"></i></div><div class="setting-copy"><div class="setting-label">Keep-alive (сек)</div><div class="setting-desc">Интервал проверки соединения</div></div></div>
+      <input type="number" class="setting-input" id="setting-keepalive" value="30" onchange="saveState()">
+    </div>
+  </div>
+  <div class="settings-credit">client made by @fr_izzy</div>
+</div>
+
+<div class="page" id="page-info">
+  <div class="info-box">
+    <div class="info-logo-row">
+      <img src="logo.png" style="height:56px;border-radius:8px;" onerror="this.style.display='none'">
+      <div><h3>TCP Tunnel</h3><p class="version">Version 3.2.7</p></div>
+    </div>
+    <hr>
+    <p class="how-to"><strong>Как использовать:</strong></p>
+    <ol class="steps">
+      <li>Подготовьте строку подключения или конфиг</li>
+      <li>Вставьте данные на главной вкладке</li>
+      <li>Нажмите кнопку подключения</li>
+    </ol>
+    <hr>
+    <p class="section-title"><i class="fa-solid fa-address-book"></i> Контакты</p>
+    <div class="contacts">
+      <p><i class="fa-solid fa-hashtag"></i> @fr_izzy</p>
+    </div>
+    <div class="page-actions">
+      <button class="btn-action" onclick="openBuyPage()"><i class="fa-solid fa-cart-shopping"></i> Купить туннель</button>
+      <button class="btn-action" onclick="openSite()"><i class="fa-solid fa-globe"></i> Открыть сайт</button>
+    </div>
+    <hr>
+    <div class="credit">client made by @fr_izzy</div>
+  </div>
+</div>
+
+<div class="update-screen" id="update-screen">
+  <div class="update-panel">
+    <h1 id="update-title">Обновление клиента</h1>
+    <p id="update-text">Для продолжения работы нужно установить новую версию клиента.</p>
+    <div class="update-meta">
+      <div><strong>Current</strong><br><span id="update-current">—</span></div>
+      <div><strong>Latest</strong><br><span id="update-latest">—</span></div>
+    </div>
+    <div class="update-actions">
+      <button class="update-btn" id="update-open-btn" type="button">Скачать обновление</button>
+      <button class="update-secondary" id="update-exit-btn" type="button">Выход</button>
+    </div>
+  </div>
+</div>
+
+<script>
+const SITE_URL = '';
+const BUY_URL = '';
+const ALLOWED_TCP_TUNNEL_HOST = '';
+const log = document.getElementById('log');
+const connectBtn = document.getElementById('connect-btn');
+const connectLabel = document.getElementById('connect-label');
+const connectSub = document.getElementById('connect-sub');
+const connDisplay = document.getElementById('conn');
+const profileDropdown = document.getElementById('profile-dropdown');
+const savedList = document.getElementById('saved-list');
+const accountTunnels = document.getElementById('account-tunnels');
+let darkMode = true;
+let connected = false;
+let activeProfileIds = new Set();
+let pendingConnectProfileId = null;
+let connectStartTime = null;
+let updateInfo = null;
+let statsInterval = null;
+let trafficHistory = [];
+let totalUp = 0, totalDown = 0, peakUp = 0, peakDown = 0;
+let lastLogLen = 0;
+let localServiceWarnShown = false;
+let seenIssueKeys = new Set();
+let pending2fa = null;
+let lastEditedKind = 'config';
+let startupAutoConnectScheduled = false;
+
+const appState = {
+  profiles: [],
+  selectedProfileId: null,
+  account: {
+    authenticated: false,
+    user: null,
+    tunnels: [],
+  }
+};
+
+function getCompatibilityModeEnabled() {
+  return true;
+}
+
+function normalizeHostValue(value) {
+  return normalizeText(value).toLowerCase();
+}
+
+function isTcpTunnelHost(value) {
+  return normalizeHostValue(value) === ALLOWED_TCP_TUNNEL_HOST;
+}
+
+function isCompatibilityProfile(profile) {
+  return !!profile?.compatibilityMode;
+}
+
+function shouldDisconnectForCompatibilityToggle(enabled, profile) {
+  return false;
+}
+
+function getProfileRuntimeKey(profileOrId) {
+  if (!profileOrId) return '';
+  if (typeof profileOrId === 'string') return profileOrId;
+  return profileOrId.id || '';
+}
+
+function isProfileRunning(profileOrId) {
+  const key = getProfileRuntimeKey(profileOrId);
+  return !!key && activeProfileIds.has(key);
+}
+
+function getAnyTunnelRunning() {
+  return activeProfileIds.size > 0;
+}
+
+function applyCompatibilityUiState() {
+  const compatibilityPill = document.getElementById('compatibility-pill');
+  const encryptRow = document.getElementById('setting-encrypt-row');
+  const compressRow = document.getElementById('setting-compress-row');
+  if (compatibilityPill) compatibilityPill.classList.remove('show');
+  if (encryptRow) encryptRow.classList.remove('setting-disabled');
+  if (compressRow) compressRow.classList.remove('setting-disabled');
+  syncConfigEditorModeText();
+}
+
+function getProfileTypeLabel(profile) {
+  return isCompatibilityProfile(profile) ? 'frp' : String(profile?.type || 'config');
+}
+
+function normalizeTunnelType(value) {
+  const normalized = String(value || '').trim().toLowerCase().replace(/[+\s-]+/g, '_');
+  return normalized === 'tcp_udp' || normalized === 'tcpudp' || normalized === 'udp'
+    ? 'tcp_udp'
+    : 'tcp';
+}
+
+function getTunnelTypeBadgeLabel(value) {
+  return normalizeTunnelType(value) === 'tcp_udp' ? 'TCP+UDP' : 'TCP';
+}
+
+function getUnsafeProfileBadge(profile) {
+  return isCompatibilityProfile(profile)
+    ? '<span class="saved-badge saved-badge-unsafe">FRP небезопасный</span>'
+    : '';
+}
+
+function syncConfigEditorModeText() {
+  const title = document.getElementById('config-editor-title');
+  const sub = document.getElementById('config-editor-sub');
+  if (!title || !sub) return;
+  title.textContent = 'Конфиг';
+  sub.textContent = 'Вставьте .frp / .toml конфиг и добавьте его как новый туннель';
+}
+
+function readJson(raw) {
+  if (!raw) return {};
+  if (typeof raw === 'object') return raw;
+  try { return JSON.parse(raw); } catch { return {}; }
+}
+
+function toggleMenu(force) {
+  const next = typeof force === 'boolean' ? force : !document.getElementById('sidebar').classList.contains('open');
+  document.getElementById('sidebar').classList.toggle('open', next);
+  document.getElementById('sidebar-overlay').classList.toggle('open', next);
+}
+
+function goHome() {
+  openPage('main');
+}
+
+function openPage(page) {
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.toggle('active', n.dataset.page === page));
+  document.querySelectorAll('.page').forEach(p => p.classList.toggle('active', p.id === 'page-' + page));
+  toggleMenu(false);
+}
+
+document.querySelectorAll('.nav-item').forEach(item => {
+  item.onclick = () => openPage(item.dataset.page);
+});
+
+document.addEventListener('click', function(e) {
+  const a = e.target.closest('a[href]');
+  if (a && a.href && a.href.startsWith('http')) {
+    e.preventDefault();
+    window.pywebview.api.open_url(a.href);
+  }
+});
+
+function openSite() {
+  if (SITE_URL) window.pywebview.api.open_url(SITE_URL);
+}
+
+function openBuyPage() {
+  if (BUY_URL) window.pywebview.api.open_url(BUY_URL);
+}
+
+function showUpdateScreen(info) {
+  updateInfo = info || null;
+  const screen = document.getElementById('update-screen');
+  document.getElementById('update-current').textContent = info?.current_version || '—';
+  document.getElementById('update-latest').textContent = info?.latest_version || '—';
+  document.getElementById('update-title').textContent = info?.must_update ? 'Требуется обновление' : 'Проверка версии';
+  document.getElementById('update-text').textContent = info?.must_update
+    ? 'Эта версия клиента устарела. Скачайте новую сборку, затем запустите её вместо текущей.'
+    : 'Проверка версии завершена.';
+  screen.style.display = 'flex';
+}
+
+function openUpdateLink() {
+  const url = updateInfo?.download_url;
+  if (!url) return;
+  window.pywebview.api.open_url(url);
+  window.pywebview.api.exit_app();
+}
+
+document.getElementById('update-open-btn').addEventListener('click', openUpdateLink);
+document.getElementById('update-exit-btn').addEventListener('click', () => window.pywebview.api.exit_app());
+
+function copyText(row) {
+  navigator.clipboard.writeText(row.querySelector('span:last-child').textContent);
+}
+
+function clearLog() {
+  log.innerHTML = '';
+}
+
+function togglePasswordVisibility() {
+  const inputId = arguments[0] || 'account-password';
+  const input = document.getElementById(inputId);
+  if (!input) return;
+  input.type = input.type === 'password' ? 'text' : 'password';
+}
+
+function showStartupLoginModal() {
+}
+
+function hideStartupLoginModal() {
+}
+
+function skipStartupLogin() {
+  hideStartupLoginModal();
+}
+
+function markEditorKind(kind) {
+  lastEditedKind = kind === 'string' ? 'string' : 'config';
+}
+
+function setConnected(on, announce) {
+  const changed = connected !== on;
+  connected = on;
+  connectBtn.classList.toggle('on', on);
+  connectBtn.classList.toggle('connecting', !on && pendingConnectProfileId === (selectedProfile()?.id || ''));
+  connectLabel.textContent = on ? 'Подключено' : 'Нажмите для подключения';
+  connectLabel.style.color = on ? '#ffffff' : '';
+  connectSub.textContent = on ? 'Туннель активен' : 'Отключено';
+  connectSub.style.color = on ? '#d7d7d7' : '';
+  if (on) {
+    connectStartTime = Date.now();
+    startStats();
+  } else {
+    connectStartTime = null;
+    stopStats();
+  }
+  if (announce && changed) {
+    showSuccessToast(on ? 'Подключено' : 'Отключено');
+  }
+}
+
+function setPendingConnection(profileId, pending) {
+  const normalizedId = String(profileId || '').trim();
+  pendingConnectProfileId = pending && normalizedId ? normalizedId : null;
+  const selectedId = selectedProfile()?.id || '';
+  if (pendingConnectProfileId && selectedId === pendingConnectProfileId) {
+    connectBtn.classList.remove('on');
+    connectBtn.classList.add('connecting');
+    connectLabel.textContent = 'Подключение...';
+    connectLabel.style.color = '';
+    connectSub.textContent = '';
+    connectSub.style.color = '';
+  }
+}
+
+function syncSelectedTunnelUi(announce) {
+  const profile = selectedProfile();
+  const selectedRunning = isProfileRunning(profile);
+  if (profile && pendingConnectProfileId === profile.id && !selectedRunning) {
+    setPendingConnection(profile.id, true);
+    renderAll();
+    return;
+  }
+  setConnected(selectedRunning, announce);
+  renderAll();
+}
+
+function updateRuntimeState(status, selectedRuntimeKey, announce) {
+  const keys = Array.isArray(status?.active_profile_ids)
+    ? status.active_profile_ids.filter(Boolean)
+    : [];
+  activeProfileIds = new Set(keys);
+  const anyConnected = typeof status?.connected === 'boolean'
+    ? status.connected
+    : keys.length > 0;
+  const selectedConnected = selectedRuntimeKey
+    ? (typeof status?.selected_connected === 'boolean'
+      ? status.selected_connected
+      : keys.includes(selectedRuntimeKey))
+    : (selectedProfile() ? isProfileRunning(selectedProfile()) : anyConnected);
+  if (selectedRuntimeKey && selectedConnected && pendingConnectProfileId === selectedRuntimeKey) {
+    pendingConnectProfileId = null;
+  }
+  connected = anyConnected;
+  if (selectedRuntimeKey && pendingConnectProfileId === selectedRuntimeKey && !selectedConnected) {
+    setPendingConnection(selectedRuntimeKey, true);
+    renderAll();
+    return;
+  }
+  setConnected(selectedConnected, announce);
+  renderAll();
+}
+
+let errorToastTimer = null;
+function showToast(text, kind) {
+  const wrap = document.getElementById('error-toast-wrap');
+  const msg = document.getElementById('error-toast-text');
+  const icon = document.getElementById('error-toast-icon');
+  if (!wrap || !msg || !text) return;
+  msg.textContent = text;
+  wrap.classList.toggle('success', kind === 'success');
+  if (icon) {
+    icon.className = kind === 'success'
+      ? 'fa-solid fa-circle-check'
+      : 'fa-solid fa-triangle-exclamation';
+  }
+  wrap.classList.add('show');
+  requestNotifySound();
+  if (errorToastTimer) clearTimeout(errorToastTimer);
+  errorToastTimer = setTimeout(() => wrap.classList.remove('show'), 5000);
+}
+
+function showErrorToast(text) {
+  showToast(text, 'error');
+}
+
+function showSuccessToast(text) {
+  showToast(text, 'success');
+}
+
+function requestNotifySound() {
+  try {
+    if (window.pywebview?.api?.play_notify_sound) {
+      window.pywebview.api.play_notify_sound();
+    }
+  } catch {}
+}
+
+function addLog(text, type) {
+  const d = document.createElement('div');
+  if (type) d.className = type;
+  d.textContent = '[' + new Date().toLocaleTimeString() + '] ' + text;
+  log.appendChild(d);
+  log.scrollTop = log.scrollHeight;
+  if (type === 'e' && String(text || '').trim().toLowerCase() !== 'отключено') {
+    showErrorToast(text);
+  }
+}
+
+function normalizeText(value) {
+  return String(value || '').trim();
+}
+
+function makeId(prefix) {
+  return `${prefix}_${Math.random().toString(36).slice(2, 9)}${Date.now().toString(36)}`;
+}
+
+function parseQueryLike(raw) {
+  const text = normalizeText(raw);
+  let query = text;
+  if (query.includes('?')) query = query.split('?').slice(1).join('?');
+  return new URLSearchParams(query.replace(/^\?/, ''));
+}
+
+function parseConfigProfileMeta(cfg) {
+  const tunnelTypeComment = cfg.match(/^\s*#\s*tunnel_type\s*=\s*"?([^"\r\n]+)"?/im)?.[1] || '';
+  return {
+    host: cfg.match(/serverAddr\s*=\s*"([^"]+)"/)?.[1] || '',
+    user: cfg.match(/user\s*=\s*"([^"]+)"/)?.[1] || '',
+    localPort: Number(cfg.match(/localPort\s*=\s*(\d+)/)?.[1] || 0),
+    remotePort: Number(cfg.match(/remotePort\s*=\s*(\d+)/)?.[1] || 0),
+    expiresAt: cfg.match(/^\s*#\s*expires_at\s*=\s*"?([^"\r\n]+)"?/im)?.[1] || '',
+    tunnelType: normalizeTunnelType(tunnelTypeComment || (/\btype\s*=\s*"udp"/i.test(cfg) ? 'tcp_udp' : 'tcp'))
+  };
+}
+
+function parseStringProfileMeta(str) {
+  const p = parseQueryLike(str);
+  return {
+    host: p.get('host') || '',
+    user: p.get('user') || '',
+    localPort: Number(p.get('local_port') || 0),
+    remotePort: Number(p.get('remote_port') || 0),
+    expiresAt: p.get('expires_at') || '',
+    tunnelType: normalizeTunnelType(p.get('tunnel_type') || '')
+  };
+}
+
+function normalizeStoredProfile(profile) {
+  const base = profile && typeof profile === 'object' ? profile : {};
+  const host = normalizeText(base.host || '');
+  const compatibilityMode = typeof base.compatibilityMode === 'boolean'
+    ? base.compatibilityMode
+    : (base.source === 'manual' && base.type === 'config' && host && !isTcpTunnelHost(host));
+  return {
+    ...base,
+    type: base.type === 'string' ? 'string' : 'config',
+    source: base.source || 'manual',
+    name: base.name || base.user || host || 'Профиль',
+    user: base.user || '',
+    host,
+    localPort: Number(base.localPort || 0),
+    remotePort: Number(base.remotePort || 0),
+    expiresAt: base.expiresAt || '',
+    tunnelType: normalizeTunnelType(base.tunnelType || base.tunnel_type || ''),
+    status: base.status || '',
+    raw: base.raw || '',
+    compatibilityMode,
+  };
+}
+
+function validateManualProfileMeta(kind, raw, meta) {
+  if (kind === 'string') {
+    if (getCompatibilityModeEnabled()) return 'В режиме совместимости используйте обычный FRP-конфиг, а не строку TCP Tunnel';
+    if (!/^tcptunnel:\/\/connect\?/i.test(raw)) return 'Строка подключения должна начинаться с tcptunnel://connect?';
+    if (!meta.host || !meta.user || !meta.localPort || !meta.remotePort) return 'Строка подключения заполнена не полностью';
+    return '';
+  }
+
+  if (getCompatibilityModeEnabled()) {
+    const hasServerPort = /serverPort\s*=\s*\d+/i.test(raw);
+    const hasProxyBlock = /\[\[proxies\]\]/i.test(raw);
+    if (!meta.host || !meta.localPort) return 'FRP-конфиг заполнен не полностью';
+    if (isTcpTunnelHost(meta.host)) return 'Для конфигов TCP Tunnel выключите режим совместимости';
+    if (!hasServerPort || !hasProxyBlock) return 'FRP-конфиг выглядит неполным или неподдерживаемым';
+    return '';
+  }
+
+  const hasServerPort = /serverPort\s*=\s*\d+/i.test(raw);
+  const hasAuthToken = /auth\.token\s*=\s*"[^"]+"/i.test(raw);
+  const hasProxyBlock = /\[\[proxies\]\]/i.test(raw);
+  if (!meta.host || !meta.user || !meta.localPort || !meta.remotePort) return 'Конфиг заполнен не полностью';
+  if (!hasServerPort || !hasAuthToken || !hasProxyBlock) return 'Конфиг выглядит неполным или повреждённым';
+  return '';
+}
+
+function selectedProfile() {
+  return appState.profiles.find(p => p.id === appState.selectedProfileId) || null;
+}
+
+function formatProfileMeta(profile) {
+  const bits = [];
+  if (profile.user) bits.push(profile.user);
+  if (profile.remotePort) bits.push('remote ' + profile.remotePort);
+  if (profile.localPort) bits.push('local ' + profile.localPort);
+  bits.push(getTunnelTypeBadgeLabel(profile.tunnelType));
+  if (profile.source === 'account') bits.push('аккаунт');
+  if (isCompatibilityProfile(profile)) bits.push('обычный frp');
+  return bits.join(' • ') || 'Без деталей';
+}
+
+function parseDateSafe(value) {
+  if (!value) return null;
+  const dt = new Date(value);
+  return Number.isNaN(dt.getTime()) ? null : dt;
+}
+
+function buildPublicHost() {
+  return 'tcp.tcptunnel.shop';
+}
+
+function formatDaysLeft(value) {
+  const expiresDate = typeof value === 'number' ? null : parseDateSafe(value);
+  const expiresMs = typeof value === 'number'
+    ? Date.now() + Math.max(0, value) * 86400000
+    : expiresDate?.getTime();
+  const daysLeft = Number.isFinite(expiresMs)
+    ? Math.max(0, Math.ceil((expiresMs - Date.now()) / 86400000))
+    : 0;
+  const suffix = daysLeft % 10 === 1 && daysLeft % 100 !== 11
+    ? 'день'
+    : daysLeft % 10 >= 2 && daysLeft % 10 <= 4 && !(daysLeft % 100 >= 12 && daysLeft % 100 <= 14)
+      ? 'дня'
+      : 'дней';
+  return `Осталось ${daysLeft} ${suffix}`;
+}
+
+function getProfileStatusState(profile) {
+  const explicit = String(profile?.status || '').trim().toLowerCase();
+  if (explicit === 'expired' || explicit === 'истекший') return 'expired';
+  if (explicit === 'active' || explicit === 'активный') return 'active';
+  const expiresAt = parseDateSafe(profile?.expiresAt);
+  if (expiresAt && expiresAt.getTime() < Date.now()) return 'expired';
+  return 'active';
+}
+
+function getProfileStatusLabel(profile) {
+  return getProfileStatusState(profile) === 'expired' ? 'Истекший' : 'Активный';
+}
+
+function getProfileStatusBadgeClass(profile) {
+  return getProfileStatusState(profile) === 'expired' ? 'saved-badge-status-expired' : 'saved-badge-status-active';
+}
+
+function getRuntimeBadgeClass(profile) {
+  return isProfileRunning(profile) ? 'saved-badge-status-running' : '';
+}
+
+function getRuntimeStatusLabel(profile) {
+  return isProfileRunning(profile) ? 'Включён' : 'Выключен';
+}
+
+function formatProfileExpiry(value) {
+  const dt = parseDateSafe(value);
+  return dt ? dt.toLocaleString() : '—';
+}
+
+function formatProfileExpiryDate(value) {
+  const dt = parseDateSafe(value);
+  return dt ? dt.toLocaleDateString() : '—';
+}
+
+function extractProfileTokens(profile) {
+  if (!profile?.raw) {
+    return { authToken: profile?.source === 'account' ? 'Через аккаунт' : '—', loginToken: profile?.source === 'account' ? 'Через аккаунт' : '—' };
+  }
+  if (profile.type === 'string') {
+    const q = parseQueryLike(profile.raw);
+    return {
+      authToken: q.get('auth_token') || q.get('token') || '—',
+      loginToken: q.get('login_token') || q.get('log_token') || '—'
+    };
+  }
+  return {
+    authToken: profile.raw.match(/auth\.token\s*=\s*"([^"]+)"/i)?.[1] || '—',
+    loginToken: profile.raw.match(/^\s*#\s*(?:auth\.(?:login_token|log_token)|tcptunnel_log_token)\s*=\s*"?([^"\r\n]+)"?/im)?.[1] || '—'
+  };
+}
+
+function openProfileDetails(profileId) {
+  const profile = appState.profiles.find(p => p.id === profileId);
+  if (!profile) {
+    addLog('Профиль не найден', 'e');
+    return;
+  }
+  const tokens = extractProfileTokens(profile);
+  document.getElementById('profile-modal-title').textContent = profile.name || 'Профиль';
+  document.getElementById('profile-modal-sub').textContent = formatProfileMeta(profile);
+  document.getElementById('profile-modal-badges').innerHTML = `
+    <span class="saved-badge">${profile.source === 'account' ? 'Аккаунт' : 'Локальный'}</span>
+    <span class="saved-badge">${escapeHtml(getProfileTypeLabel(profile))}</span>
+    <span class="saved-badge">${escapeHtml(getTunnelTypeBadgeLabel(profile.tunnelType))}</span>
+    ${getUnsafeProfileBadge(profile)}
+    <span class="saved-badge ${getProfileStatusBadgeClass(profile)}">${getProfileStatusLabel(profile)}</span>
+  `;
+  const rows = [
+    ['Пользователь', profile.user || '—'],
+    ['Сервер', profile.host || '—'],
+    ['Тип', getTunnelTypeBadgeLabel(profile.tunnelType)],
+    ['Удалённый порт', profile.remotePort || '—'],
+    ['Локальный порт', profile.localPort || '—'],
+    ['Истекает', formatProfileExpiry(profile.expiresAt)],
+    ['Статус', getProfileStatusLabel(profile)],
+    ['Токен', tokens.authToken],
+    ['Логин токен', tokens.loginToken],
+  ];
+  document.getElementById('profile-modal-grid').innerHTML = rows
+    .map(([label, value]) => `<div class="profile-modal-row"><span>${escapeHtml(label)}</span><span>${escapeHtml(String(value || '—'))}</span></div>`)
+    .join('');
+  document.getElementById('profile-details-modal').classList.add('show');
+}
+
+function closeProfileDetails() {
+  document.getElementById('profile-details-modal').classList.remove('show');
+}
+
+function openConfigEditorModal() {
+  syncConfigEditorModeText();
+  document.getElementById('config-editor-modal').classList.add('show');
+}
+
+function closeConfigEditorModal() {
+  document.getElementById('config-editor-modal').classList.remove('show');
+}
+
+function parseProfileToInfo(profile) {
+  if (!profile) {
+    document.getElementById('i-host').textContent = '—';
+    document.getElementById('i-server-endpoint').textContent = '—';
+    document.getElementById('i-user').textContent = '—';
+    document.getElementById('i-local').textContent = '127.0.0.1';
+    document.getElementById('i-lport').textContent = '—';
+    document.getElementById('i-rport').textContent = '—';
+    document.getElementById('i-expires').textContent = '—';
+    connDisplay.value = '';
+    return;
+  }
+  document.getElementById('i-host').textContent = profile.host || '—';
+  document.getElementById('i-server-endpoint').textContent = profile.host ? `${profile.host}:${profile.remotePort || '—'}` : '—';
+  document.getElementById('i-user').textContent = profile.user || '—';
+  document.getElementById('i-local').textContent = '127.0.0.1';
+  document.getElementById('i-lport').textContent = profile.localPort || '—';
+  document.getElementById('i-rport').textContent = profile.remotePort || '—';
+  document.getElementById('i-expires').textContent = formatProfileExpiryDate(profile.expiresAt);
+  connDisplay.value = profile.name || profile.user || 'Сохранённый профиль';
+}
+
+function ensureSelectedProfile() {
+  if (!selectedProfile()) {
+    appState.selectedProfileId = appState.profiles[0]?.id || null;
+  }
+}
+
+function saveState() {
+  const currentConfig = normalizeText(document.getElementById('config-input')?.value);
+  const currentConn = normalizeText(document.getElementById('conn-input')?.value);
+  window.pywebview.api.save_state(JSON.stringify({
+    darkMode,
+    autoConnect: document.getElementById('toggle-auto').checked,
+    trayEnabled: document.getElementById('toggle-tray').checked,
+    notifications: document.getElementById('toggle-notify').checked,
+    encryption: true,
+    compression: true,
+    compatibilityMode: true,
+    reconnect: document.getElementById('toggle-reconnect').checked,
+    keepalive: document.getElementById('setting-keepalive').value,
+    profiles: appState.profiles,
+    selectedProfileId: appState.selectedProfileId,
+    connString: currentConn,
+    configText: currentConfig,
+  }));
+}
+
+function toggleTheme() {
+  darkMode = !darkMode;
+  document.body.classList.toggle('light', !darkMode);
+  saveState();
+}
+
+async function toggleCompatibilityMode() {
+  const enabled = getCompatibilityModeEnabled();
+  const profile = selectedProfile();
+  if (shouldDisconnectForCompatibilityToggle(enabled, profile)) {
+    try {
+      await window.pywebview.api.disconnect();
+    } catch {}
+    setConnected(false, true);
+    addLog(
+      enabled
+        ? 'Режим совместимости включён. Текущий TCP Tunnel отключён автоматически.'
+        : 'Режим совместимости выключен. Текущий FRP-туннель отключён автоматически.',
+      'w'
+    );
+  }
+  applyCompatibilityUiState();
+  saveState();
+}
+
+function toggleTray() {
+  window.pywebview.api.set_tray_enabled(document.getElementById('toggle-tray').checked);
+  saveState();
+}
+
+function toggleAutostart() {
+  window.pywebview.api.set_autostart(document.getElementById('toggle-autostart').checked);
+}
+
+function toggleProfileDropdown() {
+  profileDropdown.classList.toggle('open');
+  document.getElementById('profile-dropdown-trigger').classList.toggle('open', profileDropdown.classList.contains('open'));
+}
+
+function renderProfileDropdown() {
+  profileDropdown.innerHTML = '';
+  if (!appState.profiles.length) {
+    profileDropdown.innerHTML = '<div class="dropdown-empty-plain">Тута пусто</div>';
+    return;
+  }
+  appState.profiles.forEach(profile => {
+    const row = document.createElement('div');
+    row.className = 'saved-item profile-dropdown-item' + (profile.id === appState.selectedProfileId ? ' active' : '');
+    row.innerHTML = `<div class="saved-copy"><div class="saved-title-row"><span class="saved-activity-dot ${isProfileRunning(profile) ? 'on' : ''}"></span><div class="saved-title">${escapeHtml(profile.name)}</div></div><div class="saved-meta">${escapeHtml(formatProfileMeta(profile))}</div><div class="saved-badges"><span class="saved-badge">${profile.source === 'account' ? 'Аккаунт' : 'Локальный'}</span><span class="saved-badge">${escapeHtml(getProfileTypeLabel(profile))}</span><span class="saved-badge">${escapeHtml(getTunnelTypeBadgeLabel(profile.tunnelType))}</span>${getUnsafeProfileBadge(profile)}<span class="saved-badge ${getProfileStatusBadgeClass(profile)}">${getProfileStatusLabel(profile)}</span><span class="saved-badge ${getRuntimeBadgeClass(profile)}">${getRuntimeStatusLabel(profile)}</span></div></div><button class="btn-sm">Выбрать</button>`;
+    row.querySelector('button').onclick = () => {
+      appState.selectedProfileId = profile.id;
+      document.getElementById('conn-input').value = profile.type === 'string' ? (profile.raw || '') : '';
+      document.getElementById('config-input').value = profile.type === 'config' ? (profile.raw || '') : '';
+      markEditorKind(profile.type === 'string' ? 'string' : 'config');
+      syncSelectedTunnelUi(false);
+      saveState();
+      profileDropdown.classList.remove('open');
+    };
+    profileDropdown.appendChild(row);
+  });
+}
+
+function renderSavedList() {
+  savedList.innerHTML = '';
+  if (!appState.profiles.length) {
+    savedList.innerHTML = '<div class="saved-empty saved-empty-card"><div class="saved-copy"><div class="saved-title">Нет сохранённых конфигов</div><div class="saved-meta">Сохраните строку или TOML, чтобы тут появился список.</div></div></div>';
+    return;
+  }
+  appState.profiles.forEach(profile => {
+    const row = document.createElement('div');
+    row.className = 'saved-item saved-list-card' + (profile.id === appState.selectedProfileId ? ' active' : '');
+    row.innerHTML = `
+      <div class="saved-copy">
+        <div class="saved-title-row"><span class="saved-activity-dot ${isProfileRunning(profile) ? 'on' : ''}"></span><div class="saved-title">${escapeHtml(profile.name)}</div></div>
+        <div class="saved-meta">${escapeHtml(formatProfileMeta(profile))}</div>
+        <div class="saved-badges">
+          <span class="saved-badge">${profile.source === 'account' ? 'Аккаунт' : 'Локальный'}</span>
+          <span class="saved-badge">${escapeHtml(getProfileTypeLabel(profile))}</span>
+          <span class="saved-badge">${escapeHtml(getTunnelTypeBadgeLabel(profile.tunnelType))}</span>
+          ${getUnsafeProfileBadge(profile)}
+          <span class="saved-badge ${getProfileStatusBadgeClass(profile)}">${getProfileStatusLabel(profile)}</span>
+          <span class="saved-badge ${getRuntimeBadgeClass(profile)}">${getRuntimeStatusLabel(profile)}</span>
+        </div>
+      </div>
+      <div class="saved-actions">
+        <button class="btn-sm">Открыть</button>
+        ${profile.source === 'manual' ? '<button class="saved-delete-btn" title="Удалить"><i class="fa-solid fa-trash"></i></button>' : ''}
+      </div>`;
+    row.onclick = () => {
+      appState.selectedProfileId = profile.id;
+      document.getElementById('conn-input').value = profile.type === 'string' ? (profile.raw || '') : '';
+      document.getElementById('config-input').value = profile.type === 'config' ? (profile.raw || '') : '';
+      markEditorKind(profile.type === 'string' ? 'string' : 'config');
+      syncSelectedTunnelUi(false);
+      saveState();
+    };
+    row.querySelector('.btn-sm').onclick = () => {
+      event.stopPropagation();
+      openProfileDetails(profile.id);
+    };
+    const deleteBtn = row.querySelector('.saved-delete-btn');
+    if (deleteBtn) {
+      deleteBtn.onclick = (event) => {
+        event.stopPropagation();
+        deleteProfileById(profile.id);
+      };
+    }
+    savedList.appendChild(row);
+  });
+}
+
+function renderAccount() {
+  const accountPage = document.getElementById('page-account');
+  if (accountPage) accountPage.style.display = 'none';
+}
+
+function renderAll() {
+  ensureSelectedProfile();
+  parseProfileToInfo(selectedProfile());
+  renderProfileDropdown();
+  renderSavedList();
+  renderAccount();
+}
+
+function escapeHtml(value) {
+  return String(value || '')
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
+}
+
+function buildManualProfile(kind, rawText, existingId) {
+  const raw = normalizeText(rawText);
+  if (!raw) throw new Error(kind === 'config' ? 'Вставьте конфиг' : 'Вставьте строку подключения');
+  const meta = kind === 'config' ? parseConfigProfileMeta(raw) : parseStringProfileMeta(raw);
+  const validationError = validateManualProfileMeta(kind, raw, meta);
+  if (validationError) throw new Error(validationError);
+  const compatibilityProfile = kind === 'config' && getCompatibilityModeEnabled();
+  return {
+    id: existingId || makeId(kind),
+    type: kind,
+    source: 'manual',
+    compatibilityMode: compatibilityProfile,
+    name: meta.user || (compatibilityProfile ? (meta.host || 'FRP конфиг') : (kind === 'config' ? 'Ручной конфиг' : 'Строка подключения')),
+    user: meta.user || '',
+    host: meta.host || '',
+    localPort: meta.localPort || 0,
+    remotePort: meta.remotePort || 0,
+    tunnelType: normalizeTunnelType(meta.tunnelType || ''),
+    expiresAt: meta.expiresAt || '',
+    status: meta.expiresAt && parseDateSafe(meta.expiresAt)?.getTime() < Date.now() ? 'expired' : 'active',
+    raw,
+  };
+}
+
+function upsertProfile(profile) {
+  const index = appState.profiles.findIndex(p => p.id === profile.id);
+  if (index >= 0) appState.profiles[index] = profile;
+  else appState.profiles.push(profile);
+  appState.selectedProfileId = profile.id;
+}
+
+function detectSaveKind(preferredKind) {
+  const connValue = normalizeText(document.getElementById('conn-input').value);
+  const configValue = normalizeText(document.getElementById('config-input').value);
+  const candidate = preferredKind || lastEditedKind;
+  if (candidate === 'string' && connValue) return 'string';
+  if (candidate === 'config' && configValue) return 'config';
+  if (configValue) return 'config';
+  if (connValue) return 'string';
+  return '';
+}
+
+function saveManualCurrent(preferredKind) {
+  const kind = detectSaveKind(preferredKind);
+  if (!kind) {
+    addLog('Вставьте строку подключения или конфиг', 'e');
+    return;
+  }
+  if (kind === 'string') {
+    saveManualString();
+    return;
+  }
+  saveManualConfig();
+}
+
+function deleteProfileById(profileId) {
+  const target = appState.profiles.find(p => p.id === profileId);
+  if (!target) {
+    addLog('Профиль не найден', 'e');
+    return;
+  }
+  if (target.source === 'account') {
+    addLog('Аккаунтный профиль удаляется через выход из аккаунта или изменение списка туннелей на сайте', 'w');
+    return;
+  }
+  appState.profiles = appState.profiles.filter(p => p.id !== profileId);
+  if (appState.selectedProfileId === profileId) {
+    appState.selectedProfileId = appState.profiles[0]?.id || null;
+  }
+  renderAll();
+  saveState();
+  addLog('Профиль удалён', 'w');
+}
+
+function saveManualString() {
+  try {
+    markEditorKind('string');
+    const current = selectedProfile();
+    const profile = buildManualProfile('string', document.getElementById('conn-input').value, current?.source === 'manual' && current?.type === 'string' ? current.id : null);
+    upsertProfile(profile);
+    renderAll();
+    saveState();
+    addLog('Строка сохранена', 's');
+  } catch (error) {
+    addLog(error.message || 'Не удалось сохранить строку', 'e');
+  }
+}
+
+function saveManualStringAsNew() {
+  try {
+    markEditorKind('string');
+    const profile = buildManualProfile('string', document.getElementById('conn-input').value, null);
+    upsertProfile(profile);
+    renderAll();
+    saveState();
+    addLog('Новый туннель из строки добавлен', 's');
+  } catch (error) {
+    addLog(error.message || 'Не удалось добавить туннель из строки', 'e');
+  }
+}
+
+function saveManualConfig() {
+  try {
+    markEditorKind('config');
+    const current = selectedProfile();
+    const profile = buildManualProfile('config', document.getElementById('config-input').value, current?.source === 'manual' && current?.type === 'config' ? current.id : null);
+    upsertProfile(profile);
+    renderAll();
+    saveState();
+    addLog('Конфиг сохранён', 's');
+  } catch (error) {
+    addLog(error.message || 'Не удалось сохранить конфиг', 'e');
+  }
+}
+
+function saveManualConfigAsNew() {
+  try {
+    markEditorKind('config');
+    const profile = buildManualProfile('config', document.getElementById('config-input').value, null);
+    upsertProfile(profile);
+    renderAll();
+    saveState();
+    addLog('Новый туннель из конфига добавлен', 's');
+    return true;
+  } catch (error) {
+    addLog(error.message || 'Не удалось добавить туннель из конфига', 'e');
+    return false;
+  }
+}
+
+function deleteSelectedProfile() {
+  const current = selectedProfile();
+  if (!current) {
+    addLog('Сначала выберите профиль', 'e');
+    return;
+  }
+  deleteProfileById(current.id);
+}
+
+function failPendingConnect(message) {
+  setPendingConnection('', false);
+  addLog(message, 'e');
+  connectBtn.classList.remove('connecting');
+  connectLabel.textContent = 'Нажмите для подключения';
+  connectSub.textContent = 'Отключено';
+}
+
+async function toggleConnect() {
+  const profile = selectedProfile();
+  if (!profile) {
+    addLog('Сначала выберите сохранённый профиль', 'e');
+    return;
+  }
+  if (isProfileRunning(profile)) {
+    const result = readJson(await window.pywebview.api.disconnect_tunnel(profile.id));
+    updateRuntimeState(result, profile.id, true);
+    addLog(`Туннель "${profile.name}" отключён вручную`, 'w');
+    return;
+  }
+  await connectWithProfile(profile);
+}
+
+function triggerStartupAutoConnectIfNeeded() {
+  if (startupAutoConnectScheduled) {
+    return;
+  }
+
+  startupAutoConnectScheduled = true;
+  setTimeout(async () => {
+    const profile = selectedProfile();
+    if (!profile) {
+      return;
+    }
+
+    try {
+      const status = readJson(await window.pywebview.api.get_status(profile.id || ''));
+      updateRuntimeState(status, profile.id || '', false);
+      if (isProfileRunning(profile) || pendingConnectProfileId === profile.id) {
+        addLog(`Автоподключение пропущено: туннель "${profile.name}" уже активен.`, 'w');
+        return;
+      }
+
+      await connectWithProfile(profile);
+    } catch (error) {
+      addLog('Автоподключение не удалось запустить', 'e');
+    }
+  }, 1000);
+}
+
+async function connectWithProfile(profile) {
+  if (getCompatibilityModeEnabled()) {
+    if (profile.source === 'account' || profile.type === 'string' || !isCompatibilityProfile(profile) || isTcpTunnelHost(profile.host)) {
+      failPendingConnect('Выключите режим совместимости для подключения к TCP Tunnel');
+      return;
+    }
+  } else if (isCompatibilityProfile(profile)) {
+    failPendingConnect('Включите режим совместимости для этого FRP-конфига');
+    return;
+  }
+
+  resetLogIssueState();
+  try {
+    const currentLogs = readJson(await window.pywebview.api.get_logs());
+    lastLogLen = Array.isArray(currentLogs) ? currentLogs.length : lastLogLen;
+  } catch (error) {
+  }
+  setPendingConnection(profile.id, true);
+  connectBtn.classList.add('connecting');
+  connectLabel.textContent = 'Подключение...';
+  connectSub.textContent = '';
+  addLog('Подключение...');
+  let result;
+  if (profile.source === 'account') {
+    result = readJson(await window.pywebview.api.account_connect_tunnel(profile.tunnelId, profile.id));
+  } else if (profile.type === 'string') {
+    result = readJson(await window.pywebview.api.connect_string(profile.raw, profile.id));
+  } else {
+    result = readJson(await window.pywebview.api.connect_config(profile.raw, profile.id));
+  }
+  if (result.success) {
+    setPendingConnection(profile.id, false);
+    updateRuntimeState(result, profile.id, true);
+    addLog(`Туннель "${profile.name}" подключён`, 's');
+    pollLogs();
+  } else {
+    failPendingConnect(result.error || 'Ошибка подключения');
+    connectSub.textContent = 'Ошибка';
+  }
+}
+
+async function connectAccountTunnel(tunnelId, profileKey) {
+  if (getCompatibilityModeEnabled()) {
+    failPendingConnect('Выключите режим совместимости для подключения к TCP Tunnel');
+    return;
+  }
+  setPendingConnection(profileKey || '', true);
+  try {
+    const currentLogs = readJson(await window.pywebview.api.get_logs());
+    lastLogLen = Array.isArray(currentLogs) ? currentLogs.length : lastLogLen;
+  } catch (error) {
+  }
+  const result = readJson(await window.pywebview.api.account_connect_tunnel(tunnelId, profileKey || ''));
+  if (result.success) {
+    setPendingConnection(profileKey || '', false);
+    updateRuntimeState(result, profileKey || '', true);
+    addLog('Туннель подключён', 's');
+    pollLogs();
+  } else {
+    setPendingConnection(profileKey || '', false);
+    addLog(result.error || 'Ошибка подключения аккаунтного туннеля', 'e');
+  }
+}
+
+async function doPickFile() {
+  const content = await window.pywebview.api.pick_file();
+  if (!content) return;
+  if (content.trim().startsWith('tcptunnel://')) {
+    document.getElementById('conn-input').value = content.trim();
+    markEditorKind('string');
+  } else {
+    document.getElementById('config-input').value = content;
+    markEditorKind('config');
+  }
+  saveState();
+  saveManualCurrent(lastEditedKind);
+}
+
+async function doPickFileConfig() {
+  const content = await window.pywebview.api.pick_file();
+  if (!content) return;
+  if (content.trim().startsWith('tcptunnel://')) {
+    document.getElementById('conn-input').value = content.trim();
+    markEditorKind('string');
+    saveState();
+    return;
+  } else {
+    document.getElementById('config-input').value = content;
+    markEditorKind('config');
+    saveState();
+    openConfigEditorModal();
+    return;
+  }
+}
+
+function resetLogIssueState() {
+  localServiceWarnShown = false;
+  seenIssueKeys = new Set();
+}
+
+function isLocalServiceWaitingLine(lower) {
+  return (lower.includes('startworkconn contains error') && lower.includes('invalid newworkconn')) ||
+    lower.includes('timeout trying to get work connection') ||
+    lower.includes('failed to get work connection') ||
+    (lower.includes('connect to local service') && (lower.includes('actively refused') || lower.includes('connection refused') || lower.includes('connectex')));
+}
+
+function getLocalServiceWaitingMessage(lower) {
+  if ((lower.includes('startworkconn contains error') && lower.includes('invalid newworkconn')) ||
+      lower.includes('timeout trying to get work connection') ||
+      lower.includes('failed to get work connection')) {
+    return 'Туннель уже подключен. Локальный сервис пока недоступен: его можно запустить позже, не переподключая туннель.';
+  }
+
+  return 'Локальный сервис на выбранном порту пока недоступен. Проверьте localPort и приложение на вашем ПК.';
+}
+
+async function pollLogs() {
+  const logs = readJson(await window.pywebview.api.get_logs());
+  for (let i = lastLogLen; i < logs.length; i++) {
+    const l = logs[i];
+    const plain = String(l || '').replace(/\x1B\[[0-9;]*[A-Za-z]/g, '').trim();
+    const lower = plain.toLowerCase();
+    if (isLocalServiceWaitingLine(lower)) {
+      if (!localServiceWarnShown) {
+        addLog(getLocalServiceWaitingMessage(lower), 'w');
+        localServiceWarnShown = true;
+      }
+      continue;
+    }
+    if (lower.includes('warning: local service') && lower.includes('not reachable')) {
+      if (!localServiceWarnShown) {
+        addLog('Локальный сервис пока недоступен. Запустите его и проверьте порт.', 'w');
+        localServiceWarnShown = true;
+      }
+      continue;
+    }
+    if (lower.includes('start proxy success') || lower.includes('tunnel active')) {
+      addLog(plain || l, 's');
+      continue;
+    }
+    if (lower.includes('already exists')) {
+      const issueKey = 'already-exists';
+      if (!seenIssueKeys.has(issueKey)) {
+        seenIssueKeys.add(issueKey);
+        addLog('Найдена старая сессия. Освобождаем туннель и повторяем подключение...', 'w');
+      }
+      continue;
+    }
+    if (lower.includes('start error') || lower.includes('error')) {
+      let issueKey = lower;
+      if (!seenIssueKeys.has(issueKey)) {
+        seenIssueKeys.add(issueKey);
+        addLog(plain || l, 'e');
+      }
+      continue;
+    }
+    addLog(plain || l);
+  }
+  lastLogLen = logs.length;
+  const selectedKey = selectedProfile()?.id || '';
+  const st = readJson(await window.pywebview.api.get_status(selectedKey));
+  updateRuntimeState(st, selectedKey, false);
+  if (st.connected) {
+    setTimeout(pollLogs, 500);
+  } else {
+    resetLogIssueState();
+  }
+}
+
+function syncAccountProfiles() {
+  const serverIds = new Set(appState.account.tunnels.map(t => t.id));
+  appState.profiles = appState.profiles.filter(p => p.source !== 'account' || serverIds.has(p.tunnelId));
+  appState.account.tunnels.forEach(tunnel => {
+    const existing = appState.profiles.find(p => p.source === 'account' && p.tunnelId === tunnel.id);
+    const publicHost = tunnel.publicHost || buildPublicHost(tunnel.frpUser);
+    const profile = {
+      id: existing?.id || `account_${tunnel.id}`,
+      tunnelId: tunnel.id,
+      type: 'account',
+      source: 'account',
+      name: tunnel.frpUser || `Tunnel #${tunnel.id}`,
+      user: tunnel.frpUser || '',
+      host: publicHost,
+      localPort: tunnel.localPort || 0,
+      remotePort: tunnel.remotePort || 0,
+      tunnelType: normalizeTunnelType(tunnel.tunnelType),
+      expiresAt: tunnel.expiresAt || '',
+      status: tunnel.status || '',
+      raw: '',
+    };
+    if (existing) Object.assign(existing, profile);
+    else appState.profiles.push(profile);
+  });
+}
+
+function clearAccountProfiles() {
+  const current = selectedProfile();
+  appState.profiles = appState.profiles.filter(p => p.source !== 'account');
+  if (current?.source === 'account') {
+    appState.selectedProfileId = appState.profiles[0]?.id || null;
+  }
+}
+
+function getLoginElements(source) {
+  const prefix = source === 'modal' ? 'modal-' : '';
+  return {
+    loginInput: document.getElementById(`${prefix}account-login`),
+    passwordInput: document.getElementById(`${prefix}account-password`),
+    twoFaInput: document.getElementById(`${prefix}account-2fa`),
+    twoFaWrap: document.getElementById(`${prefix}account-2fa-wrap`),
+    loginButton: document.getElementById(`${prefix}login-submit-btn`),
+    verifyButton: document.getElementById(`${prefix}verify-2fa-btn`)
+  };
+}
+
+function syncLoginForms(values) {
+  const login = values?.login ?? document.getElementById('account-login').value;
+  const password = values?.password ?? document.getElementById('account-password').value;
+  const code = values?.code ?? document.getElementById('account-2fa').value;
+  ['account-login', 'modal-account-login'].forEach(id => { const el = document.getElementById(id); if (el) el.value = login; });
+  ['account-password', 'modal-account-password'].forEach(id => { const el = document.getElementById(id); if (el) el.value = password; });
+  ['account-2fa', 'modal-account-2fa'].forEach(id => { const el = document.getElementById(id); if (el) el.value = code; });
+}
+
+function mapUser(user) {
+  if (!user) return null;
+  return {
+    id: Number(user.Id || user.id || 0),
+    name: user.Name || user.name || '',
+    email: user.Email || user.email || '',
+    role: user.Role || user.role || 'user',
+    balance: Number(user.Balance ?? user.balance ?? 0),
+  };
+}
+
+function mapTunnels(tunnels) {
+  return Array.isArray(tunnels) ? tunnels.map(item => ({
+    id: Number(item.Id || item.id || 0),
+    frpUser: item.FrpUser || item.frpUser || item.frp_user || '',
+    remotePort: Number(item.RemotePort || item.remotePort || item.remote_port || 0),
+    localPort: Number(item.LocalPort || item.localPort || item.local_port || 0),
+    tunnelType: normalizeTunnelType(item.TunnelType || item.tunnelType || item.tunnel_type || ''),
+    status: item.Status || item.status || '',
+    expiresAt: item.ExpiresAt || item.expiresAt || item.expires_at || '',
+    publicHost: item.PublicHost || item.publicHost || item.public_host || '',
+    daysLeft: Number(item.DaysLeft ?? item.daysLeft ?? item.days_left ?? 0),
+  })) : [];
+}
+
+async function refreshAccountState(showLog) {
+  if (showLog) addLog('Аккаунт отключён в публичной версии', 'w');
+}
+
+async function loginAccount(source) {
+  addLog('Аккаунт отключён в публичной версии', 'w');
+}
+
+async function verifyAccount2fa(source) {
+  addLog('Аккаунт отключён в публичной версии', 'w');
+}
+
+async function resendAccount2fa() {
+  addLog('Аккаунт отключён в публичной версии', 'w');
+}
+
+async function logoutAccount() {
+  addLog('Аккаунт отключён в публичной версии', 'w');
+}
+
+function handleEditorSaveKey(event, kind) {
+  if (event.key !== 'Enter') {
+    return;
+  }
+  if (kind === 'config' && event.shiftKey) {
+    return;
+  }
+  event.preventDefault();
+  if (kind === 'config') {
+    if (saveManualConfigAsNew()) closeConfigEditorModal();
+    return;
+  }
+  saveManualCurrent(kind);
+}
+
+function initEditorEvents() {
+  const connInput = document.getElementById('conn-input');
+  const configInput = document.getElementById('config-input');
+  if (connInput) {
+    connInput.addEventListener('input', () => {
+      markEditorKind('string');
+      saveState();
+    });
+    connInput.addEventListener('keydown', (event) => handleEditorSaveKey(event, 'string'));
+  }
+  if (configInput) {
+    configInput.addEventListener('input', () => {
+      markEditorKind('config');
+      saveState();
+    });
+    configInput.addEventListener('keydown', (event) => handleEditorSaveKey(event, 'config'));
+  }
+}
+
+const MAX_POINTS = 60;
+function formatBytes(b) { if (b < 1024) return b + ' B'; if (b < 1048576) return (b/1024).toFixed(1) + ' KB'; if (b < 1073741824) return (b/1048576).toFixed(1) + ' MB'; return (b/1073741824).toFixed(2) + ' GB'; }
+function formatTime(ms) { const s = Math.floor(ms/1000); const h = Math.floor(s/3600), m = Math.floor((s%3600)/60), sec = s%60; if (h>0) return h+'ч '+m+'м '+sec+'с'; if (m>0) return m+'м '+sec+'с'; return sec+'с'; }
+function startStats() { trafficHistory=[]; totalUp=0; totalDown=0; peakUp=0; peakDown=0; if(statsInterval) clearInterval(statsInterval); statsInterval=setInterval(updateStats,1000); }
+function stopStats() { if(statsInterval){clearInterval(statsInterval);statsInterval=null;} }
+function updateStats() {
+  window.pywebview.api.get_traffic().then(function(raw) {
+    try {
+      const t = readJson(raw);
+      const up = t.up || 0, down = t.down || 0;
+      totalUp = t.totalUp || 0;
+      totalDown = t.totalDown || 0;
+      if (up > peakUp) peakUp = up;
+      if (down > peakDown) peakDown = down;
+      trafficHistory.push({up,down});
+      if (trafficHistory.length > MAX_POINTS) trafficHistory.shift();
+    } catch(e) {
+      trafficHistory.push({up:0,down:0});
+      if (trafficHistory.length > MAX_POINTS) trafficHistory.shift();
+    }
+    renderStats();
+  });
+}
+function renderStats() {
+  document.getElementById('stat-up').textContent = formatBytes(totalUp);
+  document.getElementById('stat-down').textContent = formatBytes(totalDown);
+  document.getElementById('stat-peak-up').textContent = formatBytes(peakUp) + '/s';
+  document.getElementById('stat-peak-down').textContent = formatBytes(peakDown) + '/s';
+  document.getElementById('stat-uptime').textContent = connectStartTime ? formatTime(Date.now() - connectStartTime) : '—';
+  drawChart();
+}
+function drawChart() {
+  const canvas=document.getElementById('traffic-chart'),ctx=canvas.getContext('2d'),w=canvas.width,h=canvas.height;
+  ctx.clearRect(0,0,w,h); if(trafficHistory.length<2)return;
+  const maxVal=Math.max(...trafficHistory.map(p=>Math.max(p.up,p.down)),1); const stepX=w/(MAX_POINTS-1);
+  ctx.strokeStyle=darkMode?'#2a2a2a':'#e0e0e0'; ctx.lineWidth=0.5;
+  for(let i=1;i<=3;i++){const y=h-(h*i/4);ctx.beginPath();ctx.moveTo(0,y);ctx.lineTo(w,y);ctx.stroke();}
+  ctx.strokeStyle=darkMode?'#f1f3f5':'#333';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<trafficHistory.length;i++){const x=i*stepX;const y=h-(trafficHistory[i].up/maxVal)*(h-10);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke(); ctx.fillStyle=darkMode?'rgba(255,255,255,0.08)':'rgba(0,0,0,0.06)'; ctx.lineTo((trafficHistory.length-1)*stepX,h);ctx.lineTo(0,h);ctx.closePath();ctx.fill();
+  ctx.strokeStyle=darkMode?'#9f9f9f':'#777';ctx.lineWidth=2;ctx.beginPath();
+  for(let i=0;i<trafficHistory.length;i++){const x=i*stepX;const y=h-(trafficHistory[i].down/maxVal)*(h-10);if(i===0)ctx.moveTo(x,y);else ctx.lineTo(x,y);}
+  ctx.stroke(); ctx.fillStyle=darkMode?'rgba(160,160,160,0.08)':'rgba(120,120,120,0.08)'; ctx.lineTo((trafficHistory.length-1)*stepX,h);ctx.lineTo(0,h);ctx.closePath();ctx.fill();
+}
+
+initEditorEvents();
+
+window.addEventListener('pywebviewready', async function() {
+  try {
+    const update = readJson(await window.pywebview.api.get_update_info());
+    if (update.must_update) {
+      showUpdateScreen(update);
+      setTimeout(function() { const ls = document.getElementById('loading-screen'); ls.style.opacity = '0'; ls.style.transition = 'opacity 0.3s'; setTimeout(function() { ls.style.display = 'none'; }, 300); }, 200);
+      return;
+    }
+    const raw = readJson(await window.pywebview.api.load_state());
+    darkMode = raw.darkMode !== false;
+    document.body.classList.toggle('light', !darkMode);
+    const themeToggle = document.getElementById('toggle-theme');
+    if (themeToggle) themeToggle.checked = darkMode;
+    if (raw.darkMode === false) document.getElementById('loading-screen').style.background = '#ffffff';
+    const autoToggle = document.getElementById('toggle-auto');
+    if (autoToggle) autoToggle.checked = !!raw.autoConnect;
+    const trayToggle = document.getElementById('toggle-tray');
+    if (trayToggle) trayToggle.checked = !!raw.trayEnabled;
+    const notifyToggle = document.getElementById('toggle-notify');
+    if (notifyToggle) notifyToggle.checked = raw.notifications !== false;
+    const reconnectToggle = document.getElementById('toggle-reconnect');
+    if (reconnectToggle) reconnectToggle.checked = raw.reconnect !== false;
+    const keepaliveInput = document.getElementById('setting-keepalive');
+    if (keepaliveInput && raw.keepalive) keepaliveInput.value = raw.keepalive;
+    const connInput = document.getElementById('conn-input');
+    if (connInput) connInput.value = raw.connString || '';
+    const configInput = document.getElementById('config-input');
+    if (configInput) configInput.value = raw.configText || '';
+    appState.profiles = Array.isArray(raw.profiles) ? raw.profiles.map(normalizeStoredProfile) : [];
+    appState.selectedProfileId = raw.selectedProfileId || null;
+    if (!appState.profiles.length) {
+      if (raw.connString) {
+        const meta = parseStringProfileMeta(raw.connString);
+        appState.profiles.push({ id: makeId('legacy_str'), type: 'string', source: 'manual', name: meta.user || 'Импортированная строка', user: meta.user || '', host: meta.host || '', localPort: meta.localPort || 0, remotePort: meta.remotePort || 0, expiresAt: meta.expiresAt || '', raw: raw.connString });
+      }
+      if (raw.configText) {
+        const meta = parseConfigProfileMeta(raw.configText);
+        appState.profiles.push({ id: makeId('legacy_cfg'), type: 'config', source: 'manual', name: meta.user || 'Импортированный конфиг', user: meta.user || '', host: meta.host || '', localPort: meta.localPort || 0, remotePort: meta.remotePort || 0, expiresAt: meta.expiresAt || '', raw: raw.configText });
+      }
+    }
+    applyCompatibilityUiState();
+    try { const as = readJson(await window.pywebview.api.get_autostart()); if (as.enabled) document.getElementById('toggle-autostart').checked = true; } catch(e) {}
+    const account = readJson(await window.pywebview.api.account_get_state());
+    if (account.success && account.authenticated) {
+      appState.account.authenticated = true;
+      appState.account.user = mapUser(account.user);
+      appState.account.tunnels = mapTunnels(account.tunnels);
+      syncAccountProfiles();
+      hideStartupLoginModal();
+    } else {
+      showStartupLoginModal();
+    }
+    const status = readJson(await window.pywebview.api.get_status(appState.selectedProfileId || ''));
+    updateRuntimeState(status, appState.selectedProfileId || '', false);
+    saveState();
+    try { window.pywebview.api.client_ready(); } catch(e) {}
+    if (raw.autoConnect && selectedProfile()) triggerStartupAutoConnectIfNeeded();
+  } catch(e) {
+    addLog('Ошибка инициализации интерфейса', 'e');
+  }
+  setTimeout(function() { const ls = document.getElementById('loading-screen'); ls.style.opacity = '0'; ls.style.transition = 'opacity 0.3s'; setTimeout(function() { ls.style.display = 'none'; }, 300); }, 200);
+});
+</script>
+</body>
+</html>
+
+
+
+
