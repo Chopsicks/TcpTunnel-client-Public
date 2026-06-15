@@ -4,10 +4,7 @@
   <img src="ui/logo.png" alt="TCP Tunnel Public" width="128" />
 </p>
 
-<p align="center">
-  A cleaned public GitHub edition of the desktop FRP launcher.<br />
-  Private production integrations, account flows, custom protections and update channels are removed.
-</p>
+
 
 ## What this public build includes
 
